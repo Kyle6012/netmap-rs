@@ -2,4 +2,8 @@
 .vscode
 .vscodium
 Cargo.lock
-./*/Cargo.lock
+./**/Cargo.lock
+dbgout.txt
+netmap.dot
+netmap.failedip
+netmap.hostcache
