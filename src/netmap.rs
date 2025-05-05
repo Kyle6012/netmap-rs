@@ -66,7 +66,7 @@ impl Netmap {
         let c_ifname = CString::new(ifname).map_err(|_| Error::BindFail("Invalid interface name".to_string()))?;
         
         let req = ffi::nmreq  {
-            nr_name: [0; ffi::NM_IFNAMSIZE as usize],
+            nr_name: [0; ffi::NM_IFNAMSIZ as usize],
             nr_version: ffi::NETMAP_API,
             nr_offset: 0,
             nr_memsize: 0,
