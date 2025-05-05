@@ -25,56 +25,47 @@ jobs:
             netmap: false
 
     steps:
-      - name: Check out code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      # — Netmap only on Ubuntu —
-      - name: Install Netmap prerequisites
-        if: matrix.netmap
+      # Netmap only on Ubuntu
+      - if: matrix.netmap
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git libelf-dev pkg-config
 
-      - name: Cache Netmap
-        if: matrix.netmap
+      - if: matrix.netmap
         id: netmap-cache
         uses: actions/cache@v3
         with:
           path: netmap
           key: netmap-${{ runner.os }}-${{ github.run_id }}
 
-      - name: Clone & install Netmap
-        if: matrix.netmap && steps.netmap-cache.outputs.cache-hit != 'true'
+      - if: matrix.netmap && steps.netmap-cache.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/luigirizzo/netmap.git netmap
           cd netmap
           make
           sudo make install
 
-      - name: Reuse cached Netmap
-        if: matrix.netmap && steps.netmap-cache.outputs.cache-hit == 'true'
+      - if: matrix.netmap && steps.netmap-cache.outputs.cache-hit == 'true'
         run: echo "Using cached Netmap build"
 
-      # — Rust toolchain & linting —
-      - name: Set up Rust toolchain
-        uses: actions-rs/toolchain@v1
+      # Rust toolchain & linting
+      - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
           override: true
           components: rustfmt, clippy
 
-      - name: Verify formatting
-        run: cargo fmt --all -- --check
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Run Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-      # — Tests —
-      - name: Run fallback-only tests (no Netmap)
+      # Tests: fallback-only on non-Linux; full on Linux
+      - name: Run fallback‐only tests
         if: matrix.netmap == false
         run: cargo test
 
-      - name: Run full tests (with Netmap/sys feature)
+      - name: Run full tests with Netmap
         if: matrix.netmap == true
         run: cargo test --all-features
 
@@ -86,38 +77,31 @@ jobs:
       DISABLE_NETMAP_KERNEL: "1"
 
     steps:
-      - name: Check out code
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-      - name: Install Netmap prerequisites
-        run: |
+      - run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git libelf-dev pkg-config
 
-      - name: Cache Netmap
-        id: netmap-cache
+      - id: netmap-cache
         uses: actions/cache@v3
         with:
           path: netmap
           key: netmap-${{ runner.os }}-${{ github.run_id }}
 
-      - name: Clone & install Netmap
-        if: steps.netmap-cache.outputs.cache-hit != 'true'
+      - if: steps.netmap-cache.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/luigirizzo/netmap.git netmap
           cd netmap
           make
           sudo make install
 
-      - name: Reuse cached Netmap
-        if: steps.netmap-cache.outputs.cache-hit == 'true'
+      - if: steps.netmap-cache.outputs.cache-hit == 'true'
         run: echo "Using cached Netmap build"
 
-      - name: Set up Rust (stable)
-        uses: actions-rs/toolchain@v1
+      - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           override: true
 
-      - name: Run benchmarks
-        run: cargo bench --features=sys
+      - run: cargo bench --features=sys
