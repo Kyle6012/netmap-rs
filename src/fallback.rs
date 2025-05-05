@@ -48,7 +48,7 @@ impl FallbackRxRing {
     }
 
     /// recieve a packet
-    pub fn recv(&self) -> Option<Frame {
+    pub fn recv(&self) -> Option<Frame> {
         let mut queue = self.0.queue.lock().unwrap();
         queue.pop_front().map(|v|Frame::new(&v))
     }
