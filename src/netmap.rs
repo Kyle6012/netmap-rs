@@ -1,3 +1,5 @@
+#![cfg(feature = "sys")]
+
 use std::ffi::CString;
 use std::marker::PhantomData;
 use std::os::unix::io::{AsRawFd, RawFd};
