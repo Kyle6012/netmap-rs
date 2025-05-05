@@ -21,29 +21,6 @@ jobs:
 
     steps:
       - name: Check out code
-name: CI
-
-on:
-  push:
-  pull_request:
-
-jobs:
-  test:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [stable, beta]
-        include:
-          - os: ubuntu-latest
-            netmap: true
-          - os: macos-latest
-            netmap: false
-          - os: windows-latest
-            netmap: false
-
-    steps:
-      - name: Check out code
         uses: actions/checkout@v3
 
       # Only on Ubuntu: install build prerequisites
