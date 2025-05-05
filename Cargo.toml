@@ -44,3 +44,6 @@ name = "sliding_window_arq"
 
 [[example]]
 name = "fec"
+
+[[example]]
+name = "thread_per_ring"
