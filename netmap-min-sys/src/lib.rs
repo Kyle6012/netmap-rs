@@ -7,7 +7,7 @@ include!(concat!(env!("OUT_DIR"), "/binding.rs"));
 
 #[cfg(test)]
 mod tests {
-    user super::*;
+    use super::*;
 
     #[test]
     fn test_struct_sizes(){
