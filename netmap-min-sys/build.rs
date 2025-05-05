@@ -9,7 +9,7 @@ fn main() {
     // just emit an empty bindings.rs and exit early.
     if env::var("DISABLE_NETMAP_KERNEL").is_ok() {
         let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-        fs::write(out_path.join("bindings.rs"), "// empty, Netmap disabled\n")
+        fs::write(out_path.join("binding.rs"), "// empty, Netmap disabled\n")
             .expect("Failed to write empty bindings.rs");
         println!("cargo:warning=DISABLE_NETMAP_KERNEL set; skipping bindgen");
         return;
