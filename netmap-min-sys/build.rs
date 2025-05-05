@@ -1,29 +1,29 @@
-use std::{env, path::PathBuf};
+use std::{env, fs, path::PathBuf};
 
 fn main() {
-    // Always re-run when NETMAP_LOCATION is updated
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-env-changed=NETMAP_LOCATION");
     println!("cargo:rerun-if-env-changed=DISABLE_NETMAP_KERNEL");
 
-    // If we're in CI / userspace mode, skip any attempt to link or build the
-    // in-kernel Netmap module.
+    // If we're disabling Netmap integration (macOS, Windows),
+    // just emit an empty bindings.rs and exit early.
     if env::var("DISABLE_NETMAP_KERNEL").is_ok() {
-        println!("cargo:warning=DISABLE_NETMAP_KERNEL set; skipping Netmap kernel integration");
-    } else {
-        // Where did the user install netmap? Defaults to /usr/local
-        let install_dir = env::var("NETMAP_LOCATION").unwrap_or_else(|_| "/usr/local".into());
-        println!("cargo:warning=Linking against Netmap in: {}", install_dir);
-
-        // Tell Cargo / rustc where to find the shared library
-        println!("cargo:rustc-link-search=native={}/lib", install_dir);
-        println!("cargo:rustc-link-lib=dylib=netmap");
+        let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+        fs::write(out_path.join("bindings.rs"), "// empty, Netmap disabled\n")
+            .expect("Failed to write empty bindings.rs");
+        println!("cargo:warning=DISABLE_NETMAP_KERNEL set; skipping bindgen");
+        return;
     }
 
-    // Now generate the Rust bindings via bindgen:
+    // Otherwise, proceed to link & bindgen:
+    let install_dir = env::var("NETMAP_LOCATION").unwrap_or_else(|_| "/usr/local".into());
+    println!("cargo:warning=Linking against Netmap in: {}", install_dir);
+    println!("cargo:rustc-link-search=native={}/lib", install_dir);
+    println!("cargo:rustc-link-lib=dylib=netmap");
+
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .allowlist_type("netmap_.*")
         .allowlist_function("nm_.*")
         .allowlist_var("NETMAP_.*")
