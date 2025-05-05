@@ -37,7 +37,7 @@ name = "throughput"
 harness = false
 
 [[example]]
-name= "ping-pong"
+name= "ping_pong"
 
 [[example]]
 name = "sliding_window_arq"
