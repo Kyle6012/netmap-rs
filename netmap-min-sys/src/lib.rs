@@ -3,7 +3,12 @@
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 
+#[cfg(feature = "sys")]
 include!(concat!(env!("OUT_DIR"), "/binding.rs"));
+
+// When `sys` is off, provide no symbols:
+#[cfg(not(feature = "sys"))]
+mod ffi {}
 
 #[cfg(test)]
 mod tests {
