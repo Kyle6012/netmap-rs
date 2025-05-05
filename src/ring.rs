@@ -1,3 +1,5 @@
+#![cfg(feature = "sys")]
+
 use std::marker::PhantomData;
 use std::ptr;
 use std::slice;
