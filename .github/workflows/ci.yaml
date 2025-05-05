@@ -4,6 +4,11 @@ on:
   push:
   pull_request:
 
+# Default location where your build.rs will look for libnetmap
+env:
+  NETMAP_LOCATION: /usr/local
+  DISABLE_NETMAP_KERNEL: "1"
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
@@ -24,14 +29,14 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
-      # === Netmap (Ubuntu only) ===
+      # Only on Ubuntu: get & install Netmap from source
       - name: Install Netmap prerequisites
         if: matrix.netmap == true
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git libelf-dev pkg-config
 
-      - name: Cache Netmap build
+      - name: Cache Netmap source/build
         if: matrix.netmap == true
         id: netmap-cache
         uses: actions/cache@v3
@@ -39,7 +44,7 @@ jobs:
           path: netmap
           key: netmap-${{ runner.os }}-${{ github.run_id }}
 
-      - name: Build & install Netmap
+      - name: Clone & install Netmap
         if: matrix.netmap == true && steps.netmap-cache.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/luigirizzo/netmap.git netmap
@@ -51,7 +56,6 @@ jobs:
         if: matrix.netmap == true && steps.netmap-cache.outputs.cache-hit == 'true'
         run: echo "Using cached Netmap build"
 
-      # === Rust setup ===
       - name: Set up Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -76,20 +80,19 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
-      # === Netmap (Ubuntu only) ===
       - name: Install Netmap prerequisites
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git libelf-dev pkg-config
 
-      - name: Cache Netmap build
+      - name: Cache Netmap source/build
         id: netmap-cache
         uses: actions/cache@v3
         with:
           path: netmap
           key: netmap-${{ runner.os }}-${{ github.run_id }}
 
-      - name: Build & install Netmap
+      - name: Clone & install Netmap
         if: steps.netmap-cache.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/luigirizzo/netmap.git netmap
@@ -101,7 +104,6 @@ jobs:
         if: steps.netmap-cache.outputs.cache-hit == 'true'
         run: echo "Using cached Netmap build"
 
-      # === Rust setup for benchmarks ===
       - name: Set up Rust (stable)
         uses: actions-rs/toolchain@v1
         with:
