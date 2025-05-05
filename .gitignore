@@ -5,5 +5,5 @@ Cargo.lock
 ./**/Cargo.lock
 dbgout.txt
 netmap.dot
-netmap.failedip
+netmap.failedip 
 netmap.hostcache
