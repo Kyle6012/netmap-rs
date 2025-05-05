@@ -68,6 +68,7 @@ jobs:
         run: |
           git clone https://github.com/luigirizzo/netmap.git netmap
           cd netmap
+          ./configure
           make
           sudo make install
 
@@ -117,6 +118,7 @@ jobs:
         run: |
           git clone https://github.com/luigirizzo/netmap.git netmap
           cd netmap
+          ./configure
           make
           sudo make install
 
