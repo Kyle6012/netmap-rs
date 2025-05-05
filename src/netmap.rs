@@ -82,7 +82,7 @@ impl Netmap {
         };
 
         let desc = unsafe {
-            ffi::nm_open(c_ifname.as_ptr(), & req as *const _. flags, ptr::null_mut())
+            ffi::nm_open(c_ifname.as_ptr(), & req as *const _. ptr::null_mut())
         };
 
         if desc.is_null() {
