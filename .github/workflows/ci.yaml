@@ -21,36 +21,65 @@ jobs:
 
     steps:
       - name: Check out code
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        rust: [stable, beta]
+        include:
+          - os: ubuntu-latest
+            netmap: true
+          - os: macos-latest
+            netmap: false
+          - os: windows-latest
+            netmap: false
+
+    steps:
+      - name: Check out code
         uses: actions/checkout@v3
 
-      # Only on Ubuntu: install/build netmap from source
-      - name: Install prerequisites for Netmap (Ubuntu only)
-        if: matrix.netmap == true
+      # Only on Ubuntu: install build prerequisites
+      - name: Install Netmap prerequisites
+        if: matrix.netmap
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git libelf-dev pkg-config
-      - name: Build & install Netmap (Ubuntu only)
-        if: matrix.netmap == true
-        # cache the netmap build directory between test/bench steps
+
+      # Cache Netmap sources/build artifacts
+      - name: Cache Netmap build
+        if: matrix.netmap
+        id: netmap-cache
         uses: actions/cache@v3
         with:
           path: netmap
-          key: netmap-${{ runner.os }}-{{ github.run_id }}
-      - name: Clone Netmap (Ubuntu only)
-        if: matrix.netmap == true && steps.cache.outputs.cache-hit != 'true'
+          key: netmap-${{ runner.os }}-${{ github.run_id }}
+
+      # Clone & build Netmap if cache missing
+      - name: Build & install Netmap
+        if: matrix.netmap && steps.netmap-cache.outputs.cache-hit != 'true'
         run: |
-          git clone https://github.com/luigirizzo/netmap.git
+          git clone https://github.com/luigirizzo/netmap.git netmap
           cd netmap
           make
           sudo make install
-      - name: Use cached Netmap (Ubuntu only)
-        if: matrix.netmap == true && steps.cache.outputs.cache-hit == 'true'
-        run: echo "Reusing cached Netmap build"
+
+      # Reuse cached Netmap
+      - name: Reuse cached Netmap
+        if: matrix.netmap && steps.netmap-cache.outputs.cache-hit == 'true'
+        run: echo "Using cached Netmap build"
 
       - name: Set up Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchains: ${{ matrix.rust }}
+          toolchain: ${{ matrix.rust }}
           override: true
           components: rustfmt, clippy
 
@@ -71,33 +100,35 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
-      - name: Install prerequisites for Netmap
+      - name: Install Netmap prerequisites
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git libelf-dev pkg-config
 
-      - name: Build & install Netmap
+      - name: Cache Netmap build
+        id: netmap-cache
         uses: actions/cache@v3
         with:
           path: netmap
-          key: netmap-${{ runner.os }}-{{ github.run_id }}
-      - name: Clone Netmap if needed
-        if: steps.cache.outputs.cache-hit != 'true'
+          key: netmap-${{ runner.os }}-${{ github.run_id }}
+
+      - name: Build & install Netmap
+        if: steps.netmap-cache.outputs.cache-hit != 'true'
         run: |
-          git clone https://github.com/luigirizzo/netmap.git
+          git clone https://github.com/luigirizzo/netmap.git netmap
           cd netmap
           make
           sudo make install
+
       - name: Reuse cached Netmap
-        if: steps.cache.outputs.cache-hit == 'true'
-        run: echo "Reusing cached Netmap build"
+        if: steps.netmap-cache.outputs.cache-hit == 'true'
+        run: echo "Using cached Netmap build"
 
       - name: Set up Rust (stable)
         uses: actions-rs/toolchain@v1
         with:
-          toolchains: stable
+          toolchain: stable
           override: true
 
       - name: Run benchmarks
         run: cargo bench --features=sys
-        
