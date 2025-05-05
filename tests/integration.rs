@@ -1,4 +1,4 @@
-#[cfg(all(unix, feature = "sys"))]
+#![cfg(all(unix, feature = "sys"))]
 mod netmap_tests {
     use netmap_rs::prelude::*;
     use std::time::Duration;
