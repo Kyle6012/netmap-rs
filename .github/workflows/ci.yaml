@@ -4,7 +4,6 @@ on:
   push:
   pull_request:
 
-# Default location where your build.rs will look for libnetmap
 env:
   NETMAP_LOCATION: /usr/local
   DISABLE_NETMAP_KERNEL: "1"
@@ -29,15 +28,15 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
-      # Only on Ubuntu: get & install Netmap from source
+      # — Netmap only on Ubuntu —
       - name: Install Netmap prerequisites
-        if: matrix.netmap == true
+        if: matrix.netmap
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git libelf-dev pkg-config
 
-      - name: Cache Netmap source/build
-        if: matrix.netmap == true
+      - name: Cache Netmap
+        if: matrix.netmap
         id: netmap-cache
         uses: actions/cache@v3
         with:
@@ -45,7 +44,7 @@ jobs:
           key: netmap-${{ runner.os }}-${{ github.run_id }}
 
       - name: Clone & install Netmap
-        if: matrix.netmap == true && steps.netmap-cache.outputs.cache-hit != 'true'
+        if: matrix.netmap && steps.netmap-cache.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/luigirizzo/netmap.git netmap
           cd netmap
@@ -53,9 +52,10 @@ jobs:
           sudo make install
 
       - name: Reuse cached Netmap
-        if: matrix.netmap == true && steps.netmap-cache.outputs.cache-hit == 'true'
+        if: matrix.netmap && steps.netmap-cache.outputs.cache-hit == 'true'
         run: echo "Using cached Netmap build"
 
+      # — Rust toolchain & linting —
       - name: Set up Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -69,12 +69,21 @@ jobs:
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Run tests
+      # — Tests —
+      - name: Run fallback-only tests (no Netmap)
+        if: matrix.netmap == false
+        run: cargo test
+
+      - name: Run full tests (with Netmap/sys feature)
+        if: matrix.netmap == true
         run: cargo test --all-features
 
   bench:
     needs: test
     runs-on: ubuntu-latest
+    env:
+      NETMAP_LOCATION: /usr/local
+      DISABLE_NETMAP_KERNEL: "1"
 
     steps:
       - name: Check out code
@@ -85,7 +94,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential git libelf-dev pkg-config
 
-      - name: Cache Netmap source/build
+      - name: Cache Netmap
         id: netmap-cache
         uses: actions/cache@v3
         with:
