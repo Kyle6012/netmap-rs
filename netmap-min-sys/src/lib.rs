@@ -10,7 +10,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_struct_sizes(){
+    fn test_struct_sizes() {
         //verify that struct sizes match expected values
         assert_eq!(std::mem::size_of::<netmap_ring>(, 128));
     }

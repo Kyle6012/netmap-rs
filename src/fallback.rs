@@ -20,7 +20,7 @@ pub struct FallbackRxRing(SharedRing);
 
 impl FallbackTxRing {
     /// create new fallback TX ring
-    pub fn new (max_size: usize) -> Self {
+    pub fn new(max_size: usize) -> Self {
         Self(SharedRing {
             queue: Arc::new(Mutex::new(VecDeque::new())),
             max_size,
@@ -50,6 +50,6 @@ impl FallbackRxRing {
     /// recieve a packet
     pub fn recv(&self) -> Option<Frame> {
         let mut queue = self.0.queue.lock().unwrap();
-        queue.pop_front().map(|v|Frame::new(&v))
+        queue.pop_front().map(|v| Frame::new(&v))
     }
 }

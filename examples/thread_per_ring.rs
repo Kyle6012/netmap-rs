@@ -1,17 +1,18 @@
-
 //! Thread-per-ring with core pinning example
 
-use netmap_rs::prelude::*;
 use core_affinity::CoreId;
+use netmap_rs::prelude::*;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
 fn main() -> Result<(), Error> {
-    let nm = Arc::new(NetmapBuilder::new("netmap:eth0")
-        .num_tx_rings(4)
-        .num_rx_rings(4)
-        .open()?);
+    let nm = Arc::new(
+        NetmapBuilder::new("netmap:eth0")
+            .num_tx_rings(4)
+            .num_rx_rings(4)
+            .open()?,
+    );
 
     let core_ids = core_affinity::get_core_ids().unwrap();
 
@@ -33,7 +34,7 @@ fn main() -> Result<(), Error> {
             loop {
                 if let Some(frame) = rx_ring.recv() {
                     counter += 1;
-                    
+
                     if counter % 1000 == 0 {
                         let elapsed = start.elapsed().as_secs_f64();
                         println!("RX {}: {:.2} pkt/sec", i, counter as f64 / elapsed);

@@ -1,12 +1,12 @@
 use std::ffi::CString;
 use std::marker::PhantomData;
-use std::os::unix::io::{AsRawFd,RawFd};
+use std::os::unix::io::{AsRawFd, RawFd};
 use std::ptr;
 use std::sync::Arc;
 
 use crate::error::Error;
-use crate::ring::{Ring, RxRing, TxRing};
 use crate::ffi;
+use crate::ring::{Ring, RxRing, TxRing};
 
 ///builder for configuring a netmap interface
 
@@ -14,7 +14,7 @@ pub struct NetmapBuilder {
     ifname: String,
     num_tx_rings: usize,
     num_rx_rings: usize,
-    flags:u32,
+    flags: u32,
 }
 
 impl NetmapBuilder {
@@ -45,7 +45,12 @@ impl NetmapBuilder {
 
     /// Open Netmap Interface
     pub fn open(self) -> Result<Netmap, Error> {
-        Netmap::open(&self.ifname, self.num_tx_rings, self.num_rx_rings, self.flags)
+        Netmap::open(
+            &self.ifname,
+            self.num_tx_rings,
+            self.num_rx_rings,
+            self.flags,
+        )
     }
 }
 
@@ -61,11 +66,17 @@ pub struct Netmap {
 unsafe impl Send for Netmap {}
 
 impl Netmap {
-    /// Open a Netmap interface with default settings 
-    pub fn open (ifname: &str, num_tx_rings: usize, num_rx_rings: usize, flags: u32) -> Result<Self, Error> {
-        let c_ifname = CString::new(ifname).map_err(|_| Error::BindFail("Invalid interface name".to_string()))?;
-        
-        let req = ffi::nmreq  {
+    /// Open a Netmap interface with default settings
+    pub fn open(
+        ifname: &str,
+        num_tx_rings: usize,
+        num_rx_rings: usize,
+        flags: u32,
+    ) -> Result<Self, Error> {
+        let c_ifname = CString::new(ifname)
+            .map_err(|_| Error::BindFail("Invalid interface name".to_string()))?;
+
+        let req = ffi::nmreq {
             nr_name: [0; ffi::NM_IFNAMSIZ as usize],
             nr_version: ffi::NETMAP_API,
             nr_offset: 0,
@@ -81,12 +92,13 @@ impl Netmap {
             spare: [0; 2],
         };
 
-        let desc = unsafe {
-            ffi::nm_open(c_ifname.as_ptr(), & req as *const _. ptr::null_mut())
-        };
+        let desc = unsafe { ffi::nm_open(c_ifname.as_ptr(), &req as *const _, ptr::null_mut()) };
 
         if desc.is_null() {
-            return Err(Error::BindFail(format!("Failed to open interface {}", ifname)));
+            return Err(Error::BindFail(format!(
+                "Failed to open interface {}",
+                ifname
+            )));
         }
 
         Ok(Self {
@@ -110,18 +122,18 @@ impl Netmap {
     /// Get a TX ring by index
     pub fn tx_ring(&self, index: usize) -> Result<TxRing, Error> {
         if index >= self.num_tx_rings {
-            return Err(Error:: InvalidRingIndex(index));
+            return Err(Error::InvalidRingIndex(index));
         }
 
         unsafe {
-            letring = ffi::NETMAP_TXRING((*self.desc).nifp, index as u32);
+            let ring = ffi::NETMAP_TXRING((*self.desc).nifp, index as u32);
             Ok(TxRing::new(ring, index))
         }
     }
 
     /// Get RX ring by index
     pub fn rx_ring(&self, index: usize) -> Result<TxRing, Error> {
-        if index >= self.num_rx_rings{
+        if index >= self.num_rx_rings {
             return Err(Error::InvalidRingIndex(index));
         }
         unsafe {

@@ -3,8 +3,8 @@ use std::ptr;
 use std::slice;
 
 use crate::error::Error;
-use crate::frame::Frame;
 use crate::ffi;
+use crate::frame::Frame;
 
 /// A Nermap ring  (tx/rx)
 pub struct Ring<'a> {
@@ -23,23 +23,23 @@ pub struct RxRing<'a>(Ring<'a>);
 
 impl<'a> Ring<'a> {
     /// Create a new ring
-    pub(crate) fn new(ring: *mut ffi::netmap_ring, index: usize) -> Self{
+    pub(crate) fn new(ring: *mut ffi::netmap_ring, index: usize) -> Self {
         Self {
-            ring. 
+            ring,
             index,
             _marker: PhantomData,
         }
     }
 
     /// Get the ring index
-    pub fn index(&self) -> usize  {
+    pub fn index(&self) -> usize {
         unsafe { (*self.ring).num_slots as usize }
     }
 
     /// sync the ring with the NIC
     pub fn sync(&self) {
         unsafe {
-            if (*self.ring).flags & ffi::NR_TX as u16 !=0 {
+            if (*self.ring).flags & ffi::NR_TX as u16 != 0 {
                 ffi::nm_txsync(self.ring, 0);
             } else {
                 ffi::nm_rxsync(self.ring, 0);
@@ -66,11 +66,7 @@ impl<'a> TxRing<'a> {
             let slot = (*ring).slot.add(cur as usize);
 
             // copy data to the slot
-            ptr::copy_nonoverlapping(
-                buf.as_ptr(),
-                (*slot).buf as *mut u8,
-                buf.len(),
-            );
+            ptr::copy_nonoverlapping(buf.as_ptr(), (*slot).buf as *mut u8, buf.len());
 
             (*slot).len = buf.len() as u16;
             (*ring).head = (*ring).cur.wrapping_add(1);
@@ -120,7 +116,7 @@ impl<'a> BatchReservation<'a> {
         }
 
         unsafe {
-            let  slot_idx = (self.start + index as u32) % (*self.ring).num_slots;
+            let slot_idx = (self.start + index as u32) % (*self.ring).num_slots;
             let slot = (*self.ring).slot.add(slot_idx as usize);
             (*slot).len = len as u16;
             Ok(slice::from_raw_parts_mut((*slot).buf as *mut u8, len))
@@ -131,7 +127,7 @@ impl<'a> BatchReservation<'a> {
     pub fn commit(self) {
         unsafe {
             (*self.ring).head = self.start + self.count as u32;
-            (*self.ring).cur = (*self,ring).head;
+            (*self.ring).cur = (*self.ring).head;
         }
     }
 }
@@ -152,7 +148,7 @@ impl<'a> RxRing<'a> {
 
             let slot_idx = (*ring).tail % (*ring).num_slots;
             let slot = (*ring).slot.add(slot_idx as usize);
-            let buf = slice::from_raw_parts((*slot).buf as *const u8, (*.slot).len as usize);
+            let buf = slice::from_raw_parts((*slot).buf as *const u8, (*slot).len as usize);
 
             (*ring).head = (*ring).tail.wrapping_add(1);
             (*ring).tail = (*ring).head;
@@ -177,7 +173,7 @@ impl<'a> RxRing<'a> {
             }
             (*ring).head = (*ring).tail + count as u32;
             (*ring).tail = (*ring).head;
-            
+
             count
         }
     }

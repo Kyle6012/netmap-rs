@@ -20,9 +20,7 @@ fn main() -> Result<(), Error> {
     let rs = ReedSolomon::new(DATA_SHARDS, PARITY_SHARDS)?;
 
     // Original data
-    let mut data: Vec<Vec<u8>> = (0..DATA_SHARDS)
-        .map(|i| vec![i as u8; 128])
-        .collect();
+    let mut data: Vec<Vec<u8>> = (0..DATA_SHARDS).map(|i| vec![i as u8; 128]).collect();
 
     // Add parity shards
     let mut shards = data.clone();
@@ -46,7 +44,11 @@ fn main() -> Result<(), Error> {
 
     // Verify reconstruction
     for i in 0..DATA_SHARDS {
-        assert_eq!(reconstructed[i], data[i], "Reconstruction failed for shard {}", i);
+        assert_eq!(
+            reconstructed[i], data[i],
+            "Reconstruction failed for shard {}",
+            i
+        );
     }
 
     println!("FEC test successful - data reconstructed correctly");

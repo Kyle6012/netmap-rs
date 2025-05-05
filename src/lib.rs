@@ -11,7 +11,7 @@
 #![warn(rustdoc::missing_crate_level_docs)]
 
 #[macro_use]
-extern  crate bitflags;
+extern crate bitflags;
 #[macro_use]
 extern crate thiserror;
 
@@ -40,7 +40,7 @@ pub mod prelude {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn it_works(){
+    fn it_works() {
         assert_eq!(2 + 2, 4);
     }
 }

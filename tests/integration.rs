@@ -37,9 +37,8 @@ mod netmap_tests {
                 break;
             }
         }
-        
-        assert_eq!(received.as_deref(), Some(b"test".as_ref()));
 
+        assert_eq!(received.as_deref(), Some(b"test".as_ref()));
     }
 
     #[test]
@@ -55,7 +54,9 @@ mod netmap_tests {
         let batch_size = 8;
 
         // send batch
-        let mut reservation = tx_ring.reserve_batch(batch_size).expect("Reservation failed");
+        let mut reservation = tx_ring
+            .reserve_batch(batch_size)
+            .expect("Reservation failed");
         for i in 0..batch_size {
             let pkt = reservation.packet(i, 1).expect("Packet access failed");
             pkt[0] = i as u8;
@@ -68,7 +69,7 @@ mod netmap_tests {
         let mut received = 0;
         let start = std::time::Instant::now();
 
-        while received < batch_size && start.elapsed() <Duration::from_secs(1){
+        while received < batch_size && start.elapsed() < Duration::from_secs(1) {
             received += rx_ring.recv_batch(&mut frames[received..]);
         }
 

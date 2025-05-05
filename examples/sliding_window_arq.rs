@@ -24,12 +24,12 @@ impl ArqSender {
         while self.window.len() < WINDOW_SIZE {
             let seq = self.next_seq;
             let payload = seq.to_be_bytes();
-            
+
             tx_ring.send(&payload)?;
             self.window.push_back((seq, Instant::now()));
             self.next_seq = self.next_seq.wrapping_add(1);
         }
-        
+
         tx_ring.sync();
         Ok(())
     }
@@ -78,7 +78,7 @@ fn main() -> Result<(), Error> {
                 let ack_seq = u16::from_be_bytes([frame[0], frame[1]]);
                 println!("Received ACK: {}", ack_seq);
                 sender.handle_ack(ack_seq);
-                
+
                 // Send more packets if window moved
                 sender.send_packets(&mut tx_ring)?;
             }

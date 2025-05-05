@@ -16,7 +16,7 @@ impl<'a> Frame<'a> {
         self.data.len()
     }
 
-    /// check if the frame is empty 
+    /// check if the frame is empty
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
@@ -35,7 +35,7 @@ impl<'a> Deref for Frame<'a> {
     }
 }
 impl<'a> From<&'a [u8]> for Frame<'a> {
-    fn from(data: &'a [u8]) ->Self{
+    fn from(data: &'a [u8]) -> Self {
         Self::new(data)
     }
 }

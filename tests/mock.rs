@@ -1,4 +1,4 @@
-use netmap_rs:: fallback::{FallbackRxRing, FallbackTxRing};
+use netmap_rs::fallback::{FallbackRxRing, FallbackTxRing};
 use netmap_rs::frame::Frame;
 
 #[test]
@@ -17,8 +17,8 @@ fn test_fallback_ring() {
     }
     assert!(tx_ring.send(b"test").is_err()); // should be full
 }
- #[test]
- fn test_threaded_fallback() {
+#[test]
+fn test_threaded_fallback() {
     use std::thread;
     use std::time::Duration;
 
@@ -43,5 +43,4 @@ fn test_fallback_ring() {
 
     tx_handle.join().unwrap();
     rx_handle.join().unwrap();
-
- }
+}

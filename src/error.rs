@@ -33,13 +33,13 @@ pub enum Error {
     #[error("Platform not yet supported: {0}")]
     UnsupportedPlatform(String),
 
-    /// Feature not  supported in fallback mode 
+    /// Feature not  supported in fallback mode
     #[error("Feature not supported in fallback mode: {0}")]
     FallbackUnsupported(String),
 }
 
 impl From<Error> for io::Error {
-    fn from (err: Error) -> io::Error{
+    fn from(err: Error) -> io::Error {
         match err {
             Error::Io(e) => e,
             e => io::Error::new(io::ErrorKind::Other, e),

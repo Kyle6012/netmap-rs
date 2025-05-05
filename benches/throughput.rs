@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
+use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
 use netmap_rs::prelude::*;
 use std::time::Duration;
 
@@ -15,7 +15,7 @@ fn throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("throughput");
     group.measurement_time(Duration::from_secs(5));
 
-    for size in[64, 128, 256, 512, 1024, 1500].iter() {
+    for size in [64, 128, 256, 512, 1024, 1500].iter() {
         group.throughput(Throughput::Bytes(*size as u64));
 
         let payload = vec![0u8: *size];
@@ -24,10 +24,14 @@ fn throughput(c: &mut Criterion) {
         group.benchmark_group(&format!("{}_bytes", size), |b| {
             b.iter(|| {
                 // send batch
-                let mut reservation = tx_ring.reserve_batch(black_box(batch_size)).expect("Reservation failed");
+                let mut reservation = tx_ring
+                    .reserve_batch(black_box(batch_size))
+                    .expect("Reservation failed");
 
                 for i in 0..batch_size {
-                    let pkt = reservation.packet(i, payload.len()).expect("Packet access failed");
+                    let pkt = reservation
+                        .packet(i, payload.len())
+                        .expect("Packet access failed");
                     pkt.copy_from_slice(&payload);
                 }
 
@@ -45,10 +49,9 @@ fn throughput(c: &mut Criterion) {
     }
 
     group.finish();
-
 }
 
-criterion_group!{
+criterion_group! {
     name = benches;
     config = Criterion::default().warm_up_time(Duration::from_secs(!));
     targets = throughput
