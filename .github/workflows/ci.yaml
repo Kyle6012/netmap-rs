@@ -60,7 +60,7 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets --all-features -- -D warnings
 
-      # Tests: fallback-only on non-Linux; full on Linux
+      # Tests
       - name: Run fallback‐only tests
         if: matrix.netmap == false
         run: cargo test
