@@ -8,6 +8,7 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         rust: [stable, beta]
@@ -23,36 +24,34 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
-      # Only on Ubuntu: install build prerequisites
+      # === Netmap (Ubuntu only) ===
       - name: Install Netmap prerequisites
-        if: matrix.netmap
+        if: matrix.netmap == true
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git libelf-dev pkg-config
 
-      # Cache Netmap sources/build artifacts
       - name: Cache Netmap build
-        if: matrix.netmap
+        if: matrix.netmap == true
         id: netmap-cache
         uses: actions/cache@v3
         with:
           path: netmap
           key: netmap-${{ runner.os }}-${{ github.run_id }}
 
-      # Clone & build Netmap if cache missing
       - name: Build & install Netmap
-        if: matrix.netmap && steps.netmap-cache.outputs.cache-hit != 'true'
+        if: matrix.netmap == true && steps.netmap-cache.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/luigirizzo/netmap.git netmap
           cd netmap
           make
           sudo make install
 
-      # Reuse cached Netmap
       - name: Reuse cached Netmap
-        if: matrix.netmap && steps.netmap-cache.outputs.cache-hit == 'true'
+        if: matrix.netmap == true && steps.netmap-cache.outputs.cache-hit == 'true'
         run: echo "Using cached Netmap build"
 
+      # === Rust setup ===
       - name: Set up Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -77,6 +76,7 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
+      # === Netmap (Ubuntu only) ===
       - name: Install Netmap prerequisites
         run: |
           sudo apt-get update
@@ -101,6 +101,7 @@ jobs:
         if: steps.netmap-cache.outputs.cache-hit == 'true'
         run: echo "Using cached Netmap build"
 
+      # === Rust setup for benchmarks ===
       - name: Set up Rust (stable)
         uses: actions-rs/toolchain@v1
         with:
