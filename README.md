@@ -60,8 +60,7 @@ fn main() -> Result<(), Error> {
 | Windows |   ⚠️   | Fallback mode only                    |
 
 
-## License
+## Note
 
-Licensed under Apache 2.0
-
+Not yet finished
 
