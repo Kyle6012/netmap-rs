@@ -1,4 +1,4 @@
-/target
+./target
 .vscode
 .vscodium
 Cargo.lock
@@ -7,3 +7,4 @@ dbgout.txt
 netmap.dot
 netmap.failedip 
 netmap.hostcache
+target
