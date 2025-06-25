@@ -21,7 +21,7 @@ Add to your  `Cargo.toml`:
 
 ```toml
 
-[dependecies]
+[dependencies]
 netmap-rs ="0.1"
 ```
 
@@ -37,11 +37,11 @@ fn main() -> Result<(), Error> {
         .open()?;
 
     let mut tx_ring = nm.tx_ring(0)?;
-    let mut rx-ring = nm.rx_ring(0)?;
+    let mut rx_ring = nm.rx_ring(0)?;
 
     // send a packet
     tx_ring.send(b"hello world")?;
-    tx.ring.sync();
+    tx_ring.sync();
 
     // receive packets
     while let Some(frame) = rx_ring.recv(){
