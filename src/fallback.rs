@@ -48,8 +48,17 @@ impl FallbackRxRing {
     }
 
     /// recieve a packet
-    pub fn recv(&self) -> Option<Frame> {
+    pub fn recv(&self) -> Option<Frame<'static>> {
         let mut queue = self.0.queue.lock().unwrap();
-        queue.pop_front().map(|v| Frame::new(&v))
+        queue.pop_front().map(Frame::new_owned)
     }
+}
+
+/// Creates a connected pair of fallback TX and RX rings.
+pub fn create_fallback_channel(max_size: usize) -> (FallbackTxRing, FallbackRxRing) {
+    let shared_ring = SharedRing {
+        queue: Arc::new(Mutex::new(VecDeque::new())),
+        max_size,
+    };
+    (FallbackTxRing(shared_ring.clone()), FallbackRxRing(shared_ring))
 }
