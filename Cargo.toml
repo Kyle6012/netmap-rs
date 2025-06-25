@@ -2,13 +2,13 @@
 name = "netmap-rs"
 version = "0.1.0"
 edition = "2021"
-authors = ["Meshack Bahati Ouma <bahatikylemeshack@gmail.com"]
+authors = ["Meshack Bahati Ouma <bahatikylemeshack@gmail.com>"]
 description = "Safe, zero-cost abstractions for Netmap kernel-bypass networking"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Kyle6012/netmap-rs"
 keywords = ['networking', 'zero-copy', 'netmap', 'low-latency', 'ffi']
 categories = ['network programming', 'api-bindings']
-readme = 'README.md'
+readme = 'docs/README.md'
 
 [features]
 default = []
@@ -20,7 +20,7 @@ bitflags = "2.0"
 core_affinity = { version = "0.8", optional = true }
 crossbeam = { version = "0.8", optional = true }
 libc = "0.2"
-netmap-min-sys = { path ='netmap-min-sys', optional = true }
+netmap-min-sys = { version = "0.1.0", optional = true } # Assuming netmap-min-sys is published as 0.1.0
 reed-solomon-erasure = { version = "6.0.0", optional = true}
 thiserror = "1.0"
 
