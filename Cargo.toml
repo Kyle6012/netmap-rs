@@ -7,7 +7,7 @@ description = "Safe, zero-cost abstractions for Netmap kernel-bypass networking"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Kyle6012/netmap-rs"
 keywords = ['networking', 'zero-copy', 'netmap', 'low-latency', 'ffi']
-categories = ['network programming', 'api-bindings']
+categories = [ 'api-bindings']
 readme = 'docs/README.md'
 
 [features]
