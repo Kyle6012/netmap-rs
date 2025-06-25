@@ -37,7 +37,7 @@ impl<'a> Frame<'a> {
     }
 }
 
-impl<'a> Deref for Frame<'a> {
+impl Deref for Frame<'_> {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
