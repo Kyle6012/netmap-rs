@@ -59,8 +59,6 @@ fn main() -> Result<(), Error> {
 | macOS   |   ⚠️   | Limited support, may require fallback |
 | Windows |   ⚠️   | Fallback mode only                    |
 
-
-## Note
-
-Not yet finished
+## Author
+Meshack Bahati
 
