@@ -22,7 +22,7 @@ tokio = { version = "1", features = ["net", "io-util", "macros", "rt"], optional
 core_affinity = { version = "0.8", optional = true }
 crossbeam = { version = "0.8", optional = true }
 libc = "0.2"
-netmap-min-sys = { version = "0.1.0", optional = true }
+netmap-min-sys = { version = "0.1.2", optional = true }
 reed-solomon-erasure = { version = "6.0.0", optional = true}
 thiserror = "1.0"
 
