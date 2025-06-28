@@ -56,9 +56,8 @@ The crate uses `bindgen` to generate Rust bindings from the C header files speci
 *   Meshack Bahati (Kenya)
 
 ## License
+*   Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE)).
+*   MIT license ([LICENSE-MIT](LICENSE-MIT)).
 
-This crate is typically licensed under a permissive license compatible with the netmap project's license (e.g., MIT/Apache-2.0). (Please add specific license terms if decided).
 
 ---
-
-*This README provides a basic overview. For detailed API documentation of the raw bindings, you would typically refer to the generated Rust documentation (if built with `cargo doc`) or the official netmap C API documentation.*
