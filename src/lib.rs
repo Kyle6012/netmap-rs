@@ -98,6 +98,16 @@ pub mod ring;
 #[cfg(feature = "sys")]
 pub use netmap_min_sys as ffi;
 
+// Tokio async support (optional feature)
+#[cfg(feature = "tokio-async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio-async")))]
+pub mod tokio_async;
+// Re-export async types at the crate root when feature is enabled.
+#[cfg(feature = "tokio-async")]
+#[cfg_attr(docsrs, doc(cfg(feature = "tokio-async")))]
+pub use tokio_async::{AsyncNetmapRxRing, AsyncNetmapTxRing, TokioNetmap};
+
+
 pub use crate::{error::Error, frame::Frame};
 
 /// The `prelude` module re-exports commonly used types from this crate

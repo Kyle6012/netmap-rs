@@ -33,8 +33,13 @@ impl<'a> Ring<'a> {
         }
     }
 
-    /// Get the ring index
+    /// Get the ring index (the ID of this ring).
     pub fn index(&self) -> usize {
+        self.index
+    }
+
+    /// Get the total number of slots in this ring.
+    pub fn num_slots(&self) -> usize {
         unsafe { (*self.ring).num_slots as usize }
     }
 
@@ -86,16 +91,25 @@ impl<'a> TxRing<'a> {
     /// reserve space for batch sending
     pub fn reserve_batch(&mut self, count: usize) -> Result<BatchReservation<'a>, Error> {
         unsafe {
-            let ring = self.0.ring;
-            let avail = (*ring).num_slots = ((*ring).head - (*ring).tail) as usize;
-            if avail < count {
+            let ring_ptr = self.0.ring;
+            let head = (*ring_ptr).head;
+            let tail = (*ring_ptr).tail;
+            let num_slots = (*ring_ptr).num_slots as u32;
+
+            // Calculate available space. Netmap rings are full when head == tail + 1 (modulo num_slots)
+            // So, available space is num_slots - 1 - current_used_slots
+            // current_used_slots = (head - tail + num_slots) % num_slots
+            let current_used_slots = (head.wrapping_sub(tail).wrapping_add(num_slots)) % num_slots;
+            let available_slots = (num_slots - 1).saturating_sub(current_used_slots) as usize;
+
+            if available_slots < count {
                 return Err(Error::InsufficientSpace);
             }
         }
 
         Ok(BatchReservation {
             ring: self.0.ring,
-            start: (*ring).head,
+            start: unsafe { (*self.0.ring).head },
             count,
             _marker: PhantomData,
         })
