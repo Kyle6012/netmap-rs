@@ -5,17 +5,15 @@ fn main() {
     println!("cargo:rerun-if-env-changed=NETMAP_LOCATION");
     println!("cargo:rerun-if-env-changed=DISABLE_NETMAP_KERNEL");
 
-    // If we're disabling Netmap integration (macOS, Windows),
-    // just emit an empty bindings.rs and exit early.
-    if env::var("DISABLE_NETMAP_KERNEL").is_ok() {
+    // Allow disabling Netmap via env or feature flag
+    if cfg!(feature = "disable-netmap-kernel") || env::var("DISABLE_NETMAP_KERNEL").is_ok() {
         let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
         fs::write(out_path.join("binding.rs"), "// empty, Netmap disabled\n")
             .expect("Failed to write empty bindings.rs");
-        println!("cargo:warning=DISABLE_NETMAP_KERNEL set; skipping bindgen");
+        println!("cargo:warning=Netmap disabled; skipping bindgen");
         return;
     }
 
-    // Otherwise, proceed to link & bindgen:
     let install_dir = env::var("NETMAP_LOCATION").unwrap_or_else(|_| "/usr/local".into());
     println!("cargo:warning=Linking against Netmap in: {}", install_dir);
     println!("cargo:rustc-link-search=native={}/lib", install_dir);
@@ -23,7 +21,6 @@ fn main() {
 
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
-        // Add the include path explicitly for bindgen
         .clang_arg(format!("-I{}/include", install_dir))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .allowlist_type("netmap_.*")
