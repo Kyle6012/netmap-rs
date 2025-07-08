@@ -56,8 +56,5 @@ This allows the crate (and `netmap-rs`) to compile, but any attempt to use Netma
 This crate is not typically used directly. Instead, the `netmap-rs` crate provides safe Rust abstractions over the raw bindings exposed here. If you are using `netmap-rs`, ensure its `sys` feature is enabled, which will correctly pull in and configure this `-sys` crate.
 
 ## License
-
-Licensed under either of
-* Apache License, Version 2.0, (LICENSE-APACHE or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license (LICENSE-MIT or http://opensource.org/licenses/MIT)
-at your option.
+*   Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE)).
+*   MIT license ([LICENSE-MIT](LICENSE-MIT)).
