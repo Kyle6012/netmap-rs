@@ -17,15 +17,15 @@ To use `netmap-rs` in your project, add it to your `Cargo.toml`.
 
 ```toml
 [dependencies]
-netmap-rs = { version = "0.1.0", features = ["sys"] }
-# Replace "0.1.0" with the desired version from crates.io
+netmap-rs = { version = "0.1.2", features = ["sys"] }
+# Replace "0.1.2" with the desired version from crates.io
 ```
 
 If you intend to use `netmap-rs` with Tokio for asynchronous operations, you should also enable the `tokio-async` feature:
 
 ```toml
 [dependencies]
-netmap-rs = { version = "0.1.0", features = ["sys", "tokio-async"] }
+netmap-rs = { version = "0.1.2", features = ["sys", "tokio-async"] }
 ```
 
 ## Basic Usage Example
