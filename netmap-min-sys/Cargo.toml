@@ -14,3 +14,7 @@ bindgen = "0.71.1"
 
 [dependencies]
 libc = "0.2.172"
+
+[features]
+default = []
+disable-netmap-kernel = []
