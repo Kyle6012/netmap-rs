@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["create_fallback_channel"],"struct":["FallbackRxRing","FallbackTxRing"]};

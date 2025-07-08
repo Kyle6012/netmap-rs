@@ -23,6 +23,8 @@ fn main() {
 
     let bindings = bindgen::Builder::default()
         .header("wrapper.h")
+        // Add the include path explicitly for bindgen
+        .clang_arg(format!("-I{}/include", install_dir))
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .allowlist_type("netmap_.*")
         .allowlist_function("nm_.*")
