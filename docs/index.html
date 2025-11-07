@@ -1,9 +1,158 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta http-equiv="refresh" content="0; url=netmap_rs/index.html" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>netmap-rs Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            background-color: #f8f9fa;
+            color: #343a40;
+        }
+        .container {
+            max-width: 960px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+        h1, h2, h3 {
+            color: #212529;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 10px;
+        }
+        a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        code {
+            background-color: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+        }
+        pre {
+            background-color: #212529;
+            color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+            color: inherit;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            font-size: 2.5em;
+        }
+        .links {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .links a {
+            margin: 0 15px;
+            font-weight: 600;
+        }
+    </style>
 </head>
 <body>
-    <p>Redirecting to <a href="netmap_rs/index.html">documentation</a>...</p>
+    <div class="container">
+        <div class="header">
+            <h1>netmap-rs</h1>
+            <p>Safe, zero-cost abstractions for Netmap kernel-bypass networking in Rust.</p>
+        </div>
+
+        <div class="links">
+            <a href="https://github.com/Kyle6012/netmap-rs">GitHub</a>
+            <a href="https://crates.io/crates/netmap-rs">crates.io</a>
+            <a href="https://github.com/Kyle6012/netmap-rs/tree/main/examples">Examples</a>
+        </div>
+
+        <h2>Introduction</h2>
+        <p><code>netmap-rs</code> provides safe, zero-cost abstractions for <a href="http://info.iet.unipi.it/~luigi/netmap/">Netmap</a>, a high-performance packet I/O framework. It allows you to directly access packet buffers in memory shared with the kernel, eliminating copies and system call overhead for extremely fast networking.</p>
+
+        <h2>Getting Started</h2>
+        <h3>Prerequisites</h3>
+        <p>You must have the Netmap C library installed. Follow the instructions in the <a href="https://github.com/luigirizzo/netmap">official Netmap repository</a> to build and install it on your system.</p>
+
+        <h3>Adding to Your Project</h3>
+        <p>Add <code>netmap-rs</code> to your <code>Cargo.toml</code>, enabling the <code>sys</code> feature for core functionality:</p>
+        <pre><code>[dependencies]
+netmap-rs = { version = "0.3", features = ["sys"] }</code></pre>
+
+        <h2>Basic Usage</h2>
+        <p>Here’s a simple example of sending and receiving a packet on an interface:</p>
+        <pre><code>use netmap_rs::prelude::*;
+use std::thread::sleep;
+use std::time::Duration;
+
+fn main() -> Result&lt;(), Error&gt; {
+    let nm = NetmapBuilder::new("eth0")
+        .num_tx_rings(1)
+        .num_rx_rings(1)
+        .build()?;
+
+    let mut tx_ring = nm.tx_ring(0)?;
+    let mut rx_ring = nm.rx_ring(0)?;
+
+    let packet_data = b"hello netmap!";
+
+    tx_ring.send(packet_data)?;
+    tx_ring.sync();
+    println!("Sent packet: {:?}", packet_data);
+
+    // ... (receive logic) ...
+
+    Ok(())
+}</code></pre>
+
+        <h2>Advanced Usage</h2>
+        <h3>Thread-per-Ring</h3>
+        <p>For maximum performance, dedicate a thread to each transmission (TX) and reception (RX) ring. This pattern is ideal for multi-core systems.</p>
+        <pre><code>use netmap_rs::prelude::*;
+use std::thread;
+
+fn main() -> Result&lt;(), Error&gt; {
+    let nm = NetmapBuilder::new("eth0")
+        .num_tx_rings(4)
+        .num_rx_rings(4)
+        .build()?;
+
+    // Spawn threads for each ring...
+    // See the full example in the repository.
+    Ok(())
+}</code></pre>
+
+        <h3>Async Support with Tokio</h3>
+        <p>Enable the <code>tokio-async</code> feature for async/await support:</p>
+        <pre><code>[dependencies]
+netmap-rs = { version = "0.3", features = ["sys", "tokio-async"] }</code></pre>
+        <pre><code>use netmap_rs::tokio_async::*;
+use tokio::time::{sleep, Duration};
+
+#[tokio::main]
+async fn main() -> Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
+    let nm = TokioNetmap::new("eth0").await?;
+    let mut rx_ring = nm.async_rx_ring(0).await?;
+
+    // ... (async receive logic) ...
+    Ok(())
+}</code></pre>
+
+        <h2>Troubleshooting</h2>
+        <p>Common issues include "netmap_user.h not found" (install Netmap), permission errors (run with sudo), and "NetmapBuilder not found" (enable the <code>sys</code> feature).</p>
+    </div>
 </body>
 </html>
