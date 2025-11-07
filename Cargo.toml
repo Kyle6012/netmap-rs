@@ -1,0 +1,53 @@
+[package]
+name = "netmap-rs"
+version = "0.3.0"
+edition = "2021"  # Changed from 2024 to 2021 for better compatibility
+authors = ["Meshack Bahati Ouma <bahatikylemeshack@gmail.com>"]
+description = "Safe, zero-cost abstractions for Netmap kernel-bypass networking"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Kyle6012/netmap-rs"
+keywords = ['networking', 'zero-copy', 'netmap', 'low-latency', 'ffi']
+categories = ['api-bindings']
+readme = 'README.md'
+
+[features]
+default = []
+sys = ['netmap-min-sys', 'core_affinity', 'reed-solomon-erasure'] # For FEC example
+fallback = ['core_affinity'] # Also include for thread_per_ring example under fallback
+tokio-async = ["tokio", "netmap-min-sys"] # tokio-async also implies sys for Netmap struct
+
+[dependencies]
+bitflags = "2.6"  # Updated to latest version
+tokio = { version = "1.40", features = ["net", "io-util", "macros", "rt"], optional = true }  # Updated version
+core_affinity = { version = "0.8", optional = true }
+crossbeam = { version = "0.8", optional = true }
+libc = "0.2"
+netmap-min-sys = { version = "0.2.2", optional = true }  # Updated to match what Cargo resolved
+reed-solomon-erasure = { version = "6.0.0", optional = true}
+thiserror = "2.0"  # Updated to latest version
+
+[dev-dependencies]
+criterion = "0.5"  # Updated version
+tempfile = "3.13"  # Updated version
+ctrlc = { version = "3.4", features = ["termination"] }  # Updated version
+polling = "3.7" # For polling example  # Updated version
+
+[[bench]]
+name = "latency"
+harness = false
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[[example]]
+name= "ping_pong"
+
+[[example]]
+name = "sliding_window_arq"
+
+[[example]]
+name = "fec"
+
+[[example]]
+name = "thread_per_ring"
