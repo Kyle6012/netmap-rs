@@ -299,7 +299,8 @@ at your option.
 
 ## AUTHOR
 - Meshack Bahati Ouma - CS major (Maseno University (Kenya))
--**Email**: bahatikylemeshack@gmail.com
+
+- **Email**: bahatikylemeshack@gmail.com
 
 ## Contributing
 
