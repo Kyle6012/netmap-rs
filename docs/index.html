@@ -3,14 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>netmap-rs Documentation</title>
+    
+    <!-- SEO Meta Tags -->
+    <title>netmap-rs Documentation | High-Performance Kernel-Bypass Networking in Rust</title>
+    <meta name="description" content="netmap-rs provides safe, zero-cost abstractions for Netmap kernel-bypass networking in Rust. Achieve high-performance packet processing with direct memory access.">
+    <meta name="keywords" content="netmap, rust, networking, kernel-bypass, high-performance, packet-processing, zero-cost-abstractions">
+    <meta name="author" content="Meshack Bahati Ouma">
+    
+    <!-- OpenGraph Meta Tags -->
+    <meta property="og:title" content="netmap-rs Documentation | High-Performance Kernel-Bypass Networking">
+    <meta property="og:description" content="Safe, zero-cost abstractions for Netmap kernel-bypass networking in Rust. Achieve maximum packet processing performance.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://github.com/Kyle6012/netmap-rs">
+    <meta property="og:image" content="https://raw.githubusercontent.com/Kyle6012/netmap-rs/main/docs/netmap-rs-og.png">
+    <meta property="og:site_name" content="netmap-rs Documentation">
+    
+    <!-- Twitter Card Meta Tags -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="netmap-rs Documentation | High-Performance Networking">
+    <meta name="twitter:description" content="Safe, zero-cost abstractions for Netmap kernel-bypass networking in Rust.">
+    <meta name="twitter:image" content="https://raw.githubusercontent.com/Kyle6012/netmap-rs/main/docs/netmap-rs-og.png">
+    <meta name="twitter:creator" content="@bealthguy">
+    
+    <!-- Favicon and Icons -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📡</text></svg>">
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://github.com/Kyle6012/netmap-rs">
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareSourceCode",
+      "name": "netmap-rs",
+      "description": "Safe, zero-cost abstractions for Netmap kernel-bypass networking in Rust",
+      "url": "https://github.com/Kyle6012/netmap-rs",
+      "codeRepository": "https://github.com/Kyle6012/netmap-rs",
+      "programmingLanguage": "Rust",
+      "runtimePlatform": "Linux",
+      "author": {
+        "@type": "Person",
+        "name": "Meshack Bahati"
+      },
+      "license": "https://opensource.org/licenses/MIT"
+    }
+    </script>
+    
     <style>
+        :root {
+            --primary-color: #007bff;
+            --secondary-color: #6c757d;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --info-color: #17a2b8;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+            --border-color: #e9ecef;
+            --shadow-color: rgba(0,0,0,0.08);
+        }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
             line-height: 1.6;
             margin: 0;
-            background-color: #f8f9fa;
-            color: #343a40;
+            background-color: var(--light-color);
+            color: var(--dark-color);
+            scroll-behavior: smooth;
         }
         .container {
             max-width: 960px;
@@ -18,25 +79,29 @@
             padding: 20px;
             background-color: #ffffff;
             border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 12px var(--shadow-color);
         }
         h1, h2, h3 {
             color: #212529;
-            border-bottom: 2px solid #e9ecef;
+            border-bottom: 2px solid var(--border-color);
             padding-bottom: 10px;
+            scroll-margin-top: 20px;
         }
         a {
-            color: #007bff;
+            color: var(--primary-color);
             text-decoration: none;
+            transition: color 0.2s ease;
         }
         a:hover {
+            color: #0056b3;
             text-decoration: underline;
         }
         code {
-            background-color: #e9ecef;
+            background-color: var(--border-color);
             padding: 2px 6px;
             border-radius: 4px;
             font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.9em;
         }
         pre {
             background-color: #212529;
@@ -44,18 +109,46 @@
             padding: 20px;
             border-radius: 8px;
             overflow-x: auto;
+            position: relative;
         }
         pre code {
             background-color: transparent;
             padding: 0;
             color: inherit;
+            font-size: 0.9em;
+        }
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: background 0.2s ease;
+        }
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
         }
         .header {
             text-align: center;
             margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
         }
         .header h1 {
             font-size: 2.5em;
+            border-bottom: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .header-icon {
+            font-size: 1.2em;
         }
         .links {
             text-align: center;
@@ -64,37 +157,148 @@
         .links a {
             margin: 0 15px;
             font-weight: 600;
+            padding: 8px 16px;
+            border-radius: 4px;
+            background-color: var(--primary-color);
+            color: white;
+            display: inline-block;
+        }
+        .links a:hover {
+            background-color: #0056b3;
+            text-decoration: none;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+        .feature-card {
+            background-color: var(--light-color);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px var(--shadow-color);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px var(--shadow-color);
+        }
+        .feature-card h3 {
+            border-bottom: none;
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+        .toc {
+            background-color: var(--light-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .toc h3 {
+            margin-top: 0;
+            border-bottom: none;
+        }
+        .toc ul {
+            padding-left: 20px;
+        }
+        .toc li {
+            margin-bottom: 8px;
+        }
+        .breadcrumb {
+            margin-bottom: 20px;
+            font-size: 0.9em;
+            color: var(--secondary-color);
+        }
+        .breadcrumb a {
+            color: var(--secondary-color);
+        }
+        .breadcrumb a:hover {
+            color: var(--primary-color);
+        }
+        @media (max-width: 768px) {
+            .container {
+                margin: 20px;
+                padding: 15px;
+            }
+            .header h1 {
+                font-size: 2em;
+            }
+            .links a {
+                display: block;
+                margin: 10px 0;
+            }
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="breadcrumb">
+            <a href="https://crates.io">crates.io</a> &gt; <a href="https://crates.io/categories/network-programming">Networking</a> &gt; netmap-rs
+        </div>
+        
         <div class="header">
-            <h1>netmap-rs</h1>
+            <h1><span class="header-icon">📡</span> netmap-rs</h1>
             <p>Safe, zero-cost abstractions for Netmap kernel-bypass networking in Rust.</p>
         </div>
 
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#introduction">Introduction</a></li>
+                <li><a href="#features">Features</a></li>
+                <li><a href="#getting-started">Getting Started</a></li>
+                <li><a href="#basic-usage">Basic Usage</a></li>
+                <li><a href="#advanced-usage">Advanced Usage</a></li>
+                <li><a href="#troubleshooting">Troubleshooting</a></li>
+            </ul>
+        </div>
+
         <div class="links">
-            <a href="https://github.com/Kyle6012/netmap-rs">GitHub</a>
+            <a href="https://github.com/Kyle6012/netmap-rs">GitHub Repository</a>
             <a href="https://crates.io/crates/netmap-rs">crates.io</a>
+            <a href="https://docs.rs/netmap-rs">API Documentation</a>
             <a href="https://github.com/Kyle6012/netmap-rs/tree/main/examples">Examples</a>
         </div>
 
-        <h2>Introduction</h2>
+        <h2 id="introduction">Introduction</h2>
         <p><code>netmap-rs</code> provides safe, zero-cost abstractions for <a href="http://info.iet.unipi.it/~luigi/netmap/">Netmap</a>, a high-performance packet I/O framework. It allows you to directly access packet buffers in memory shared with the kernel, eliminating copies and system call overhead for extremely fast networking.</p>
 
-        <h2>Getting Started</h2>
+        <h2 id="features">Features</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <h3>High Performance</h3>
+                <p>Direct memory access to packet buffers with zero-copy operations for maximum throughput.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Memory Safe</h3>
+                <p>Leverages Rust's ownership model to ensure memory safety without performance penalties.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Async Support</h3>
+                <p>Optional integration with Tokio for asynchronous packet processing.</p>
+            </div>
+            <div class="feature-card">
+                <h3>Cross-Platform</h3>
+                <p>Works on Linux, FreeBSD, and other platforms supported by Netmap.</p>
+            </div>
+        </div>
+
+        <h2 id="getting-started">Getting Started</h2>
         <h3>Prerequisites</h3>
         <p>You must have the Netmap C library installed. Follow the instructions in the <a href="https://github.com/luigirizzo/netmap">official Netmap repository</a> to build and install it on your system.</p>
 
         <h3>Adding to Your Project</h3>
         <p>Add <code>netmap-rs</code> to your <code>Cargo.toml</code>, enabling the <code>sys</code> feature for core functionality:</p>
-        <pre><code>[dependencies]
-netmap-rs = { version = "0.3", features = ["sys"] }</code></pre>
+        <pre><code id="code-cargo-toml">[dependencies]
+netmap-rs = { version = "0.3", features = ["sys"] }</code><button class="copy-btn" onclick="copyToClipboard('code-cargo-toml')">Copy</button></pre>
 
-        <h2>Basic Usage</h2>
-        <p>Here’s a simple example of sending and receiving a packet on an interface:</p>
-        <pre><code>use netmap_rs::prelude::*;
+        <h2 id="basic-usage">Basic Usage</h2>
+        <p>Here's a simple example of sending and receiving a packet on an interface:</p>
+        <pre><code id="code-basic-usage">use netmap_rs::prelude::*;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -116,12 +320,12 @@ fn main() -> Result&lt;(), Error&gt; {
     // ... (receive logic) ...
 
     Ok(())
-}</code></pre>
+}</code><button class="copy-btn" onclick="copyToClipboard('code-basic-usage')">Copy</button></pre>
 
-        <h2>Advanced Usage</h2>
+        <h2 id="advanced-usage">Advanced Usage</h2>
         <h3>Thread-per-Ring</h3>
         <p>For maximum performance, dedicate a thread to each transmission (TX) and reception (RX) ring. This pattern is ideal for multi-core systems.</p>
-        <pre><code>use netmap_rs::prelude::*;
+        <pre><code id="code-thread-per-ring">use netmap_rs::prelude::*;
 use std::thread;
 
 fn main() -> Result&lt;(), Error&gt; {
@@ -133,13 +337,13 @@ fn main() -> Result&lt;(), Error&gt; {
     // Spawn threads for each ring...
     // See the full example in the repository.
     Ok(())
-}</code></pre>
+}</code><button class="copy-btn" onclick="copyToClipboard('code-thread-per-ring')">Copy</button></pre>
 
         <h3>Async Support with Tokio</h3>
         <p>Enable the <code>tokio-async</code> feature for async/await support:</p>
-        <pre><code>[dependencies]
-netmap-rs = { version = "0.3", features = ["sys", "tokio-async"] }</code></pre>
-        <pre><code>use netmap_rs::tokio_async::*;
+        <pre><code id="code-tokio-feature">[dependencies]
+netmap-rs = { version = "0.3", features = ["sys", "tokio-async"] }</code><button class="copy-btn" onclick="copyToClipboard('code-tokio-feature')">Copy</button></pre>
+        <pre><code id="code-tokio-usage">use netmap_rs::tokio_async::*;
 use tokio::time::{sleep, Duration};
 
 #[tokio::main]
@@ -149,10 +353,53 @@ async fn main() -> Result&lt;(), Box&lt;dyn std::error::Error&gt;&gt; {
 
     // ... (async receive logic) ...
     Ok(())
-}</code></pre>
+}</code><button class="copy-btn" onclick="copyToClipboard('code-tokio-usage')">Copy</button></pre>
 
-        <h2>Troubleshooting</h2>
+        <h2 id="troubleshooting">Troubleshooting</h2>
         <p>Common issues include "netmap_user.h not found" (install Netmap), permission errors (run with sudo), and "NetmapBuilder not found" (enable the <code>sys</code> feature).</p>
+        
+        <h3>Performance Tips</h3>
+        <ul>
+            <li>Use multiple rings to distribute load across CPU cores</li>
+            <li>Pre-allocate packet buffers when possible</li>
+            <li>Batch operations to minimize synchronization overhead</li>
+            <li>Consider using huge pages for better memory performance</li>
+        </ul>
     </div>
+
+    <script>
+        // Copy to clipboard functionality
+        function copyToClipboard(elementId) {
+            const codeElement = document.getElementById(elementId);
+            const textArea = document.createElement('textarea');
+            textArea.value = codeElement.textContent;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            
+            // Visual feedback
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            setTimeout(() => {
+                button.textContent = originalText;
+            }, 2000);
+        }
+        
+        // Add smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
 </body>
 </html>
