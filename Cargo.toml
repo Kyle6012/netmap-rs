@@ -2,7 +2,7 @@
 name = "netmap-rs"
 version = "0.3.0"
 edition = "2021"  # Changed from 2024 to 2021 for better compatibility
-authors = ["Kyle6012 <bahatikylemeshack@gmail.com>"]
+authors = ["Meshack Bahati Ouma <bahatikylemeshack@gmail.com>"]
 description = "Safe, zero-cost abstractions for Netmap kernel-bypass networking"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/Kyle6012/netmap-rs"
