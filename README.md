@@ -139,6 +139,256 @@ fn main() -> Result<(), Error> {
 }
 ```
 
+## Public API
+
+This section provides a detailed overview of the public API of `netmap-rs`.
+
+### `NetmapBuilder`
+
+The `NetmapBuilder` is used to configure and create a `Netmap` instance.
+
+*   **`NetmapBuilder::new(ifname_str: &str) -> Self`**
+
+    Creates a new builder for the given Netmap interface name. `ifname_str` can be a simple interface name like `"eth0"`, or `"eth0^"` to access the host stack.
+
+    ```rust
+    use netmap_rs::NetmapBuilder;
+
+    let builder = NetmapBuilder::new("eth0");
+    ```
+
+*   **`num_tx_rings(self, num: usize) -> Self`**
+
+    Sets the desired number of transmission (TX) rings.
+
+    ```rust
+    use netmap_rs::NetmapBuilder;
+
+    let builder = NetmapBuilder::new("eth0").num_tx_rings(2);
+    ```
+
+*   **`num_rx_rings(self, num: usize) -> Self`**
+
+    Sets the desired number of reception (RX) rings.
+
+    ```rust
+    use netmap_rs::NetmapBuilder;
+
+    let builder = NetmapBuilder::new("eth0").num_rx_rings(2);
+    ```
+
+*   **`flags(self, flags: u32) -> Self`**
+
+    Sets additional flags for the Netmap request. See `<net/netmap_user.h>` for available flags.
+
+*   **`build(self) -> Result<Netmap, Error>`**
+
+    Consumes the builder and attempts to open the Netmap interface, returning a `Netmap` instance.
+
+    ```rust
+    use netmap_rs::NetmapBuilder;
+
+    let nm = NetmapBuilder::new("eth0").build();
+    ```
+
+### `Netmap`
+
+A `Netmap` instance represents an open Netmap interface.
+
+*   **`num_tx_rings(&self) -> usize`**
+
+    Returns the number of configured TX rings.
+
+*   **`num_rx_rings(&self) -> usize`**
+
+    Returns the number of configured RX rings.
+
+*   **`is_host_if(&self) -> bool`**
+
+    Returns `true` if the `Netmap` instance is configured for host stack rings.
+
+*   **`tx_ring(&self, index: usize) -> Result<TxRing, Error>`**
+
+    Returns a handle to a specific TX ring.
+
+*   **`rx_ring(&self, index: usize) -> Result<RxRing, Error>`**
+
+    Returns a handle to a specific RX ring.
+
+### `Ring`
+
+Represents a generic Netmap ring.
+
+*   **`index(&self) -> usize`**
+
+    Returns the index of the ring.
+
+*   **`num_slots(&self) -> usize`**
+
+    Returns the total number of slots in the ring.
+
+*   **`sync(&self)`**
+
+    Synchronizes the ring with the NIC, making sent packets available to the hardware and updating the ring's state to see new packets.
+
+### `TxRing`
+
+A handle to a transmission (TX) ring.
+
+*   **`send(&mut self, buf: &[u8]) -> Result<(), Error>`**
+
+    Sends a single packet. The data in `buf` is copied to a slot in the ring.
+
+*   **`max_payload_size(&self) -> usize`**
+
+    Returns the maximum payload size for a single packet in this ring.
+
+*   **`reserve_batch(&mut self, count: usize) -> Result<BatchReservation, Error>`**
+
+    Reserves space for sending a batch of packets. Returns a `BatchReservation` instance.
+
+### `BatchReservation`
+
+A reservation for a batch of packets to be sent.
+
+*   **`packet(&mut self, index: usize, len: usize) -> Result<&mut [u8], Error>`**
+
+    Gets a mutable slice for a packet in the batch. You can write your packet data to this slice.
+
+*   **`commit(self)`**
+
+    Commits the batch, making the packets visible to the NIC.
+
+### `RxRing`
+
+A handle to a reception (RX) ring.
+
+*   **`recv(&mut self) -> Option<Frame>`**
+
+    Receives a single packet from the ring. Returns a `Frame` if a packet is available.
+
+*   **`recv_batch(&mut self, batch: &mut [Frame]) -> usize`**
+
+    Receives a batch of packets. The `batch` slice is filled with available frames, and the number of received frames is returned.
+
+### `Frame`
+
+A `Frame` represents a received packet. It can be either a zero-copy view of a packet buffer (from a `Netmap` ring) or an owned buffer (in fallback mode).
+
+*   **`new(data: &'a [u8]) -> Self`**: Creates a new frame from a borrowed byte slice (zero-copy).
+*   **`new_owned(data: Vec<u8>) -> Self`**: Creates a new frame from an owned vector of bytes (for fallback).
+*   **`len(&self) -> usize`**: Returns the length of the frame.
+*   **`is_empty(&self) -> bool`**: Returns `true` if the frame is empty.
+*   **`payload(&self) -> &[u8]`**: Returns a slice containing the packet's payload.
+
+    ```rust
+    if let Some(frame) = rx_ring.recv() {
+        println!("Received packet of length {}: {:?}", frame.len(), frame.payload());
+    }
+    ```
+
+### Async API (`tokio-async` feature)
+
+When the `tokio-async` feature is enabled, you can use the following async wrappers for non-blocking I/O with Tokio.
+
+#### `TokioNetmap`
+
+The `TokioNetmap` is the entry point for async operations.
+
+*   **`TokioNetmap::new(netmap: Netmap) -> io::Result<Self>`**
+
+    Creates a new `TokioNetmap` by wrapping a `Netmap` instance.
+
+    ```rust
+    use netmap_rs::NetmapBuilder;
+    use netmap_rs::tokio_async::TokioNetmap;
+
+    # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let nm = NetmapBuilder::new("eth0").build()?;
+    let tokio_nm = TokioNetmap::new(nm)?;
+    # Ok(())
+    # }
+    ```
+
+*   **`rx_ring(&self, ring_idx: usize) -> Result<AsyncNetmapRxRing, Error>`**
+
+    Returns an async wrapper for a specific RX ring.
+
+*   **`tx_ring(&self, ring_idx: usize) -> Result<AsyncNetmapTxRing, Error>`**
+
+    Returns an async wrapper for a specific TX ring.
+
+#### `AsyncNetmapRxRing`
+
+An `AsyncRead` implementation for a Netmap RX ring.
+
+*   You can use the methods from `tokio::io::AsyncReadExt` to read from the ring, for example `read()`.
+
+    ```rust
+    # use netmap_rs::NetmapBuilder;
+    # use netmap_rs::tokio_async::TokioNetmap;
+    # use tokio::io::AsyncReadExt;
+    # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    # let nm = NetmapBuilder::new("eth0").build()?;
+    # let tokio_nm = TokioNetmap::new(nm)?;
+    let mut rx_ring = tokio_nm.rx_ring(0)?;
+    let mut buf = [0; 1500];
+    let n = rx_ring.read(&mut buf).await?;
+    # Ok(())
+    # }
+    ```
+
+#### `AsyncNetmapTxRing`
+
+An `AsyncWrite` implementation for a Netmap TX ring.
+
+*   You can use the methods from `tokio::io::AsyncWriteExt` to write to the ring, for example `write_all()` and `flush()`.
+
+    ```rust
+    # use netmap_rs::NetmapBuilder;
+    # use netmap_rs::tokio_async::TokioNetmap;
+    # use tokio::io::AsyncWriteExt;
+    # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    # let nm = NetmapBuilder::new("eth0").build()?;
+    # let tokio_nm = TokioNetmap::new(nm)?;
+    let mut tx_ring = tokio_nm.tx_ring(0)?;
+    tx_ring.write_all(b"hello async netmap").await?;
+    tx_ring.flush().await?;
+    # Ok(())
+    # }
+    ```
+
+### `Error` Enum
+
+The `Error` enum represents all possible errors that can occur in `netmap-rs`.
+
+*   `Io(io::Error)`: An I/O error from the underlying system.
+*   `WouldBlock`: The operation would block.
+*   `BindFail(String)`: Failed to bind to a Netmap interface.
+*   `InvalidRingIndex(usize)`: The specified ring index is out of bounds.
+*   `PacketTooLarge(usize)`: The packet is too large for the ring buffer.
+*   `InsufficientSpace`: There is not enough space in the ring buffer.
+*   `UnsupportedPlatform(String)`: The platform is not supported.
+*   `FallbackUnsupported(String)`: The feature is not supported in fallback mode.
+
+### Fallback API
+
+For platforms without Netmap support, a fallback implementation is provided.
+
+*   **`create_fallback_channel(max_size: usize) -> (FallbackTxRing, FallbackRxRing)`**
+
+    Creates a connected pair of fallback TX and RX rings that simulate a Netmap pipe.
+
+    ```rust
+    use netmap_rs::fallback::create_fallback_channel;
+
+    let (tx, rx) = create_fallback_channel(64);
+    tx.send(b"hello fallback").unwrap();
+    if let Some(frame) = rx.recv() {
+        assert_eq!(frame.payload(), b"hello fallback");
+    }
+    ```
+
 ## Troubleshooting
 
 ### Build Errors

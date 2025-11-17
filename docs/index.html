@@ -252,6 +252,7 @@
                 <li><a href="#features">Features</a></li>
                 <li><a href="#getting-started">Getting Started</a></li>
                 <li><a href="#basic-usage">Basic Usage</a></li>
+                <li><a href="#public-api">Public API</a></li>
                 <li><a href="#advanced-usage">Advanced Usage</a></li>
                 <li><a href="#troubleshooting">Troubleshooting</a></li>
             </ul>
@@ -321,6 +322,174 @@ fn main() -> Result&lt;(), Error&gt; {
 
     Ok(())
 }</code><button class="copy-btn" onclick="copyToClipboard('code-basic-usage')">Copy</button></pre>
+
+        <h2 id="public-api">Public API</h2>
+        <p>This section provides a detailed overview of the public API of <code>netmap-rs</code>.</p>
+
+        <h3><code>NetmapBuilder</code></h3>
+        <p>The <code>NetmapBuilder</code> is used to configure and create a <code>Netmap</code> instance.</p>
+        <ul>
+            <li><strong><code>NetmapBuilder::new(ifname_str: &str) -> Self</code></strong>: Creates a new builder for the given Netmap interface name. <code>ifname_str</code> can be a simple interface name like <code>"eth0"</code>, or <code>"eth0^"</code> to access the host stack.</li>
+        </ul>
+        <pre><code id="code-netmap-builder-new">use netmap_rs::NetmapBuilder;
+
+let builder = NetmapBuilder::new("eth0");
+</code><button class="copy-btn" onclick="copyToClipboard('code-netmap-builder-new')">Copy</button></pre>
+        <ul>
+            <li><strong><code>num_tx_rings(self, num: usize) -> Self</code></strong>: Sets the desired number of transmission (TX) rings.</li>
+        </ul>
+        <pre><code id="code-netmap-builder-num-tx-rings">use netmap_rs::NetmapBuilder;
+
+let builder = NetmapBuilder::new("eth0").num_tx_rings(2);
+</code><button class="copy-btn" onclick="copyToClipboard('code-netmap-builder-num-tx-rings')">Copy</button></pre>
+        <ul>
+            <li><strong><code>num_rx_rings(self, num: usize) -> Self</code></strong>: Sets the desired number of reception (RX) rings.</li>
+        </ul>
+        <pre><code id="code-netmap-builder-num-rx-rings">use netmap_rs::NetmapBuilder;
+
+let builder = NetmapBuilder::new("eth0").num_rx_rings(2);
+</code><button class="copy-btn" onclick="copyToClipboard('code-netmap-builder-num-rx-rings')">Copy</button></pre>
+        <ul>
+            <li><strong><code>flags(self, flags: u32) -> Self</code></strong>: Sets additional flags for the Netmap request. See <code>&lt;net/netmap_user.h&gt;</code> for available flags.</li>
+            <li><strong><code>build(self) -> Result&lt;Netmap, Error&gt;</code></strong>: Consumes the builder and attempts to open the Netmap interface, returning a <code>Netmap</code> instance.</li>
+        </ul>
+        <pre><code id="code-netmap-builder-build">use netmap_rs::NetmapBuilder;
+
+let nm = NetmapBuilder::new("eth0").build();
+</code><button class="copy-btn" onclick="copyToClipboard('code-netmap-builder-build')">Copy</button></pre>
+
+        <h3><code>Netmap</code></h3>
+        <p>A <code>Netmap</code> instance represents an open Netmap interface.</p>
+        <ul>
+            <li><strong><code>num_tx_rings(&self) -> usize</code></strong>: Returns the number of configured TX rings.</li>
+            <li><strong><code>num_rx_rings(&self) -> usize</code></strong>: Returns the number of configured RX rings.</li>
+            <li><strong><code>is_host_if(&self) -> bool</code></strong>: Returns <code>true</code> if the <code>Netmap</code> instance is configured for host stack rings.</li>
+            <li><strong><code>tx_ring(&self, index: usize) -> Result&lt;TxRing, Error&gt;</code></strong>: Returns a handle to a specific TX ring.</li>
+            <li><strong><code>rx_ring(&self, index: usize) -> Result&lt;RxRing, Error&gt;</code></strong>: Returns a handle to a specific RX ring.</li>
+        </ul>
+
+        <h3><code>Ring</code></h3>
+        <p>Represents a generic Netmap ring.</p>
+        <ul>
+            <li><strong><code>index(&self) -> usize</code></strong>: Returns the index of the ring.</li>
+            <li><strong><code>num_slots(&self) -> usize</code></strong>: Returns the total number of slots in the ring.</li>
+            <li><strong><code>sync(&self)</code></strong>: Synchronizes the ring with the NIC, making sent packets available to the hardware and updating the ring's state to see new packets.</li>
+        </ul>
+
+        <h3><code>TxRing</code></h3>
+        <p>A handle to a transmission (TX) ring.</p>
+        <ul>
+            <li><strong><code>send(&mut self, buf: &[u8]) -> Result&lt;(), Error&gt;</code></strong>: Sends a single packet. The data in <code>buf</code> is copied to a slot in the ring.</li>
+            <li><strong><code>max_payload_size(&self) -> usize</code></strong>: Returns the maximum payload size for a single packet in this ring.</li>
+            <li><strong><code>reserve_batch(&mut self, count: usize) -> Result&lt;BatchReservation, Error&gt;</code></strong>: Reserves space for sending a batch of packets. Returns a <code>BatchReservation</code> instance.</li>
+        </ul>
+
+        <h3><code>BatchReservation</code></h3>
+        <p>A reservation for a batch of packets to be sent.</p>
+        <ul>
+            <li><strong><code>packet(&mut self, index: usize, len: usize) -> Result&lt;&mut [u8], Error&gt;</code></strong>: Gets a mutable slice for a packet in the batch. You can write your packet data to this slice.</li>
+            <li><strong><code>commit(self)</code></strong>: Commits the batch, making the packets visible to the NIC.</li>
+        </ul>
+
+        <h3><code>RxRing</code></h3>
+        <p>A handle to a reception (RX) ring.</p>
+        <ul>
+            <li><strong><code>recv(&mut self) -> Option&lt;Frame&gt;</code></strong>: Receives a single packet from the ring. Returns a <code>Frame</code> if a packet is available.</li>
+            <li><strong><code>recv_batch(&mut self, batch: &mut [Frame]) -> usize</code></strong>: Receives a batch of packets. The <code>batch</code> slice is filled with available frames, and the number of received frames is returned.</li>
+        </ul>
+
+        <h3><code>Frame</code></h3>
+        <p>A <code>Frame</code> represents a received packet. It can be either a zero-copy view of a packet buffer (from a <code>Netmap</code> ring) or an owned buffer (in fallback mode).</p>
+        <ul>
+            <li><strong><code>new(data: &'a [u8]) -> Self</code></strong>: Creates a new frame from a borrowed byte slice (zero-copy).</li>
+            <li><strong><code>new_owned(data: Vec<u8>) -> Self</code></strong>: Creates a new frame from an owned vector of bytes (for fallback).</li>
+            <li><strong><code>len(&self) -> usize</code></strong>: Returns the length of the frame.</li>
+            <li><strong><code>is_empty(&self) -> bool</code></strong>: Returns <code>true</code> if the frame is empty.</li>
+            <li><strong><code>payload(&self) -> &[u8]</code></strong>: Returns a slice containing the packet's payload.</li>
+        </ul>
+        <pre><code id="code-frame-payload">if let Some(frame) = rx_ring.recv() {
+    println!("Received packet of length {}: {:?}", frame.len(), frame.payload());
+}
+</code><button class="copy-btn" onclick="copyToClipboard('code-frame-payload')">Copy</button></pre>
+
+        <h3>Async API (<code>tokio-async</code> feature)</h3>
+        <p>When the <code>tokio-async</code> feature is enabled, you can use the following async wrappers for non-blocking I/O with Tokio.</p>
+
+        <h4><code>TokioNetmap</code></h4>
+        <p>The <code>TokioNetmap</code> is the entry point for async operations.</p>
+        <ul>
+            <li><strong><code>TokioNetmap::new(netmap: Netmap) -> io::Result<Self></code></strong>: Creates a new <code>TokioNetmap</code> by wrapping a <code>Netmap</code> instance.</li>
+        </ul>
+        <pre><code id="code-tokio-netmap-new">use netmap_rs::NetmapBuilder;
+use netmap_rs::tokio_async::TokioNetmap;
+
+# async fn run() -> Result<(), Box<dyn std::error::Error>> {
+let nm = NetmapBuilder::new("eth0").build()?;
+let tokio_nm = TokioNetmap::new(nm)?;
+# Ok(())
+# }
+</code><button class="copy-btn" onclick="copyToClipboard('code-tokio-netmap-new')">Copy</button></pre>
+        <ul>
+            <li><strong><code>rx_ring(&self, ring_idx: usize) -> Result<AsyncNetmapRxRing, Error></code></strong>: Returns an async wrapper for a specific RX ring.</li>
+            <li><strong><code>tx_ring(&self, ring_idx: usize) -> Result<AsyncNetmapTxRing, Error></code></strong>: Returns an async wrapper for a specific TX ring.</li>
+        </ul>
+
+        <h4><code>AsyncNetmapRxRing</code></h4>
+        <p>An <code>AsyncRead</code> implementation for a Netmap RX ring. You can use the methods from <code>tokio::io::AsyncReadExt</code> to read from the ring.</p>
+        <pre><code id="code-async-rx-ring-read"># use netmap_rs::NetmapBuilder;
+# use netmap_rs::tokio_async::TokioNetmap;
+# use tokio::io::AsyncReadExt;
+# async fn run() -> Result<(), Box<dyn std::error::Error>> {
+# let nm = NetmapBuilder::new("eth0").build()?;
+# let tokio_nm = TokioNetmap::new(nm)?;
+let mut rx_ring = tokio_nm.rx_ring(0)?;
+let mut buf = [0; 1500];
+let n = rx_ring.read(&mut buf).await?;
+# Ok(())
+# }
+</code><button class="copy-btn" onclick="copyToClipboard('code-async-rx-ring-read')">Copy</button></pre>
+
+        <h4><code>AsyncNetmapTxRing</code></h4>
+        <p>An <code>AsyncWrite</code> implementation for a Netmap TX ring. You can use the methods from <code>tokio::io::AsyncWriteExt</code> to write to the ring.</p>
+        <pre><code id="code-async-tx-ring-write"># use netmap_rs::NetmapBuilder;
+# use netmap_rs::tokio_async::TokioNetmap;
+# use tokio::io::AsyncWriteExt;
+# async fn run() -> Result<(), Box<dyn std::error::Error>> {
+# let nm = NetmapBuilder::new("eth0").build()?;
+# let tokio_nm = TokioNetmap::new(nm)?;
+let mut tx_ring = tokio_nm.tx_ring(0)?;
+tx_ring.write_all(b"hello async netmap").await?;
+tx_ring.flush().await?;
+# Ok(())
+# }
+</code><button class="copy-btn" onclick="copyToClipboard('code-async-tx-ring-write')">Copy</button></pre>
+
+        <h3><code>Error</code> Enum</h3>
+        <p>The <code>Error</code> enum represents all possible errors that can occur in <code>netmap-rs</code>.</p>
+        <ul>
+            <li><code>Io(io::Error)</code>: An I/O error from the underlying system.</li>
+            <li><code>WouldBlock</code>: The operation would block.</li>
+            <li><code>BindFail(String)</code>: Failed to bind to a Netmap interface.</li>
+            <li><code>InvalidRingIndex(usize)</code>: The specified ring index is out of bounds.</li>
+            <li><code>PacketTooLarge(usize)</code>: The packet is too large for the ring buffer.</li>
+            <li><code>InsufficientSpace</code>: There is not enough space in the ring buffer.</li>
+            <li><code>UnsupportedPlatform(String)</code>: The platform is not supported.</li>
+            <li><code>FallbackUnsupported(String)</code>: The feature is not supported in fallback mode.</li>
+        </ul>
+
+        <h3>Fallback API</h3>
+        <p>For platforms without Netmap support, a fallback implementation is provided.</p>
+        <ul>
+            <li><strong><code>create_fallback_channel(max_size: usize) -> (FallbackTxRing, FallbackRxRing)</code></strong>: Creates a connected pair of fallback TX and RX rings that simulate a Netmap pipe.</li>
+        </ul>
+        <pre><code id="code-fallback-channel">use netmap_rs::fallback::create_fallback_channel;
+
+let (tx, rx) = create_fallback_channel(64);
+tx.send(b"hello fallback").unwrap();
+if let Some(frame) = rx.recv() {
+    assert_eq!(frame.payload(), b"hello fallback");
+}
+</code><button class="copy-btn" onclick="copyToClipboard('code-fallback-channel')">Copy</button></pre>
 
         <h2 id="advanced-usage">Advanced Usage</h2>
         <h3>Thread-per-Ring</h3>
