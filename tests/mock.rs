@@ -3,7 +3,6 @@ use netmap_rs::prelude::Error; // Only Error is explicitly used from prelude
 use std::thread;
 use std::time::Duration;
 
-
 #[test]
 fn test_fallback_ring() {
     let (tx_ring, rx_ring) = create_fallback_channel(32);
@@ -59,8 +58,8 @@ fn test_threaded_fallback() {
         // Check if all packets were received (order might not be guaranteed by this simple test alone,
         // but for a single producer/consumer on VecDeque, it should be).
         assert_eq!(received_packets.len(), num_packets);
-        for i in 0..num_packets {
-            assert_eq!(received_packets[i], vec![i as u8]);
+        for (i, pkt) in received_packets.iter().enumerate() {
+            assert_eq!(*pkt, vec![i as u8]);
         }
     });
 

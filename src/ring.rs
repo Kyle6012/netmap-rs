@@ -1,6 +1,9 @@
 #![cfg(feature = "sys")]
+#![allow(elided_lifetimes_in_paths)]
+#![allow(mismatched_lifetime_syntaxes)]
 
 use std::marker::PhantomData;
+use std::ops::Deref;
 use std::ptr;
 use std::slice;
 
@@ -11,8 +14,19 @@ use crate::frame::Frame;
 /// A Netmap ring (tx/rx)
 pub struct Ring<'a> {
     ring: *mut ffi::netmap_ring,
+    fd: i32,
     index: usize,
+    direction: RingDirection,
     _marker: PhantomData<&'a mut ffi::netmap_ring>,
+}
+
+/// Direction of a [`Ring`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RingDirection {
+    /// Transmission ring (synced with `NIOCTXSYNC`).
+    Tx,
+    /// Reception ring (synced with `NIOCRXSYNC`).
+    Rx,
 }
 
 unsafe impl<'a> Send for Ring<'a> {}
@@ -23,12 +37,28 @@ pub struct TxRing<'a>(Ring<'a>);
 /// An RX ring
 pub struct RxRing<'a>(Ring<'a>);
 
+impl<'a> Deref for TxRing<'a> {
+    type Target = Ring<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<'a> Deref for RxRing<'a> {
+    type Target = Ring<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl<'a> Ring<'a> {
     /// Create a new ring
-    pub(crate) fn new(ring: *mut ffi::netmap_ring, index: usize) -> Self {
+    pub(crate) fn new(ring: *mut ffi::netmap_ring, fd: i32, index: usize) -> Self {
         Self {
             ring,
+            fd,
             index,
+            direction: RingDirection::Tx,
             _marker: PhantomData,
         }
     }
@@ -38,27 +68,64 @@ impl<'a> Ring<'a> {
         self.index
     }
 
+    /// Current `head` pointer of the ring.
+    pub fn head(&self) -> u32 {
+        unsafe { (*self.ring).head }
+    }
+
+    /// Current `tail` pointer of the ring.
+    pub fn tail(&self) -> u32 {
+        unsafe { (*self.ring).tail }
+    }
+
+    /// Ring direction: 0 = TX, 1 = RX.
+    pub fn dir(&self) -> u16 {
+        unsafe { (*self.ring).dir }
+    }
+
+    /// Direction of this ring (TX or RX).
+    pub fn direction(&self) -> RingDirection {
+        self.direction
+    }
+
     /// Get the total number of slots in this ring.
     pub fn num_slots(&self) -> usize {
         unsafe { (*self.ring).num_slots as usize }
     }
 
+    /// Returns `true` if the ring has at least one free slot.
+    ///
+    /// A ring is considered full when `(head + 1) % num_slots == tail`.
+    pub fn has_free_slots(&self) -> bool {
+        unsafe {
+            let ring = self.ring;
+            let head = (*ring).head;
+            let tail = (*ring).tail;
+            let num_slots = (*ring).num_slots;
+            (head + 1) % num_slots != tail
+        }
+    }
+
     /// sync the ring with the NIC
+    ///
+    /// TX rings are synced with `NIOCTXSYNC`, RX rings with `NIOCRXSYNC`.
     pub fn sync(&self) {
         unsafe {
-            if (*self.ring).flags & ffi::NR_TX as u16 != 0 {
-                ffi::nm_txsync(self.ring, 0);
-            } else {
-                ffi::nm_rxsync(self.ring, 0);
-            }
+            let cmd = match self.direction {
+                RingDirection::Tx => ffi::NIOCTXSYNC,
+                RingDirection::Rx => ffi::NIOCRXSYNC,
+            };
+            libc::ioctl(self.fd, cmd, 0);
         }
     }
 }
 
 impl<'a> TxRing<'a> {
     /// create a new tx ring
-    pub(crate) fn new(ring: *mut ffi::netmap_ring, index: usize) -> Self {
-        Self(Ring::new(ring, index))
+    pub(crate) fn new(ring: *mut ffi::netmap_ring, fd: i32, index: usize) -> Self {
+        let mut r = Ring::new(ring, fd, index);
+        r.direction = RingDirection::Tx;
+        Self(r)
     }
 
     /// send a single packet
@@ -70,10 +137,11 @@ impl<'a> TxRing<'a> {
         unsafe {
             let ring = self.0.ring;
             let cur = (*ring).cur;
-            let slot = (*ring).slot.add(cur as usize);
+            let slot = (*ring).slot.as_mut_ptr().add(cur as usize);
+            let dst = ffi::NETMAP_BUF(ring, (*slot).buf_idx) as *mut u8;
 
             // copy data to the slot
-            ptr::copy_nonoverlapping(buf.as_ptr(), (*slot).buf as *mut u8, buf.len());
+            ptr::copy_nonoverlapping(buf.as_ptr(), dst, buf.len());
 
             (*slot).len = buf.len() as u16;
             (*ring).head = (*ring).cur.wrapping_add(1);
@@ -94,7 +162,7 @@ impl<'a> TxRing<'a> {
             let ring_ptr = self.0.ring;
             let head = (*ring_ptr).head;
             let tail = (*ring_ptr).tail;
-            let num_slots = (*ring_ptr).num_slots as u32;
+            let num_slots = (*ring_ptr).num_slots;
 
             // Calculate available space. Netmap rings are full when head == tail + 1 (modulo num_slots)
             // So, available space is num_slots - 1 - current_used_slots
@@ -133,9 +201,10 @@ impl<'a> BatchReservation<'a> {
 
         unsafe {
             let slot_idx = (self.start + index as u32) % (*self.ring).num_slots;
-            let slot = (*self.ring).slot.add(slot_idx as usize);
+            let slot = (*self.ring).slot.as_mut_ptr().add(slot_idx as usize);
             (*slot).len = len as u16;
-            Ok(slice::from_raw_parts_mut((*slot).buf as *mut u8, len))
+            let src = ffi::NETMAP_BUF(self.ring, (*slot).buf_idx) as *mut u8;
+            Ok(slice::from_raw_parts_mut(src, len))
         }
     }
 
@@ -150,8 +219,10 @@ impl<'a> BatchReservation<'a> {
 
 impl<'a> RxRing<'a> {
     /// create a new rx ring
-    pub(crate) fn new(ring: *mut ffi::netmap_ring, index: usize) -> Self {
-        Self(Ring::new(ring, index))
+    pub(crate) fn new(ring: *mut ffi::netmap_ring, fd: i32, index: usize) -> Self {
+        let mut r = Ring::new(ring, fd, index);
+        r.direction = RingDirection::Rx;
+        Self(r)
     }
 
     /// receive single packet
@@ -162,12 +233,13 @@ impl<'a> RxRing<'a> {
                 return None;
             }
 
-            let slot_idx = (*ring).tail % (*ring).num_slots;
-            let slot = (*ring).slot.add(slot_idx as usize);
-            let buf = slice::from_raw_parts((*slot).buf as *const u8, (*slot).len as usize);
+            let slot_idx = (*ring).head % (*ring).num_slots;
+            let slot = (*ring).slot.as_mut_ptr().add(slot_idx as usize);
+            let src = ffi::NETMAP_BUF(ring, (*slot).buf_idx) as *const u8;
+            let buf = slice::from_raw_parts(src, (*slot).len as usize);
 
-            (*ring).head = (*ring).tail.wrapping_add(1);
-            (*ring).tail = (*ring).head;
+            (*ring).head = (*ring).head.wrapping_add(1);
+            (*ring).cur = (*ring).head;
 
             Some(Frame::new(buf))
         }
@@ -177,18 +249,19 @@ impl<'a> RxRing<'a> {
     pub fn recv_batch(&mut self, batch: &mut [Frame]) -> usize {
         unsafe {
             let ring = self.0.ring;
-            let avail = ((*ring).head - (*ring).tail) as usize;
+            let avail = (*ring).tail.wrapping_sub((*ring).head) as usize;
             let count = avail.min(batch.len());
 
-            for i in 0..count {
-                let slot_idx = ((*ring).tail + i as u32) % (*ring).num_slots;
-                let slot = (*ring).slot.add(slot_idx as usize);
-                let buf = slice::from_raw_parts((*slot).buf as *const u8, (*slot).len as usize);
+            for (i, frame) in batch.iter_mut().take(count).enumerate() {
+                let slot_idx = ((*ring).head + i as u32) % (*ring).num_slots;
+                let slot = (*ring).slot.as_mut_ptr().add(slot_idx as usize);
+                let src = ffi::NETMAP_BUF(ring, (*slot).buf_idx) as *const u8;
+                let buf = slice::from_raw_parts(src, (*slot).len as usize);
 
-                batch[i] = Frame::new(buf);
+                *frame = Frame::new(buf);
             }
-            (*ring).head = (*ring).tail + count as u32;
-            (*ring).tail = (*ring).head;
+            (*ring).head = (*ring).head.wrapping_add(count as u32);
+            (*ring).cur = (*ring).head;
 
             count
         }

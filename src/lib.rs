@@ -78,7 +78,6 @@
 // #![warn(rustdoc::missing_crate_level_docs)] // Already covered by the extensive example above
 
 #[cfg(feature = "sys")]
-#[macro_use]
 extern crate bitflags;
 #[allow(unused_imports)] // Clippy seems to have a false positive with specific feature flags
 #[macro_use]
@@ -106,7 +105,6 @@ pub mod tokio_async;
 #[cfg(feature = "tokio-async")]
 #[cfg_attr(docsrs, doc(cfg(feature = "tokio-async")))]
 pub use tokio_async::{AsyncNetmapRxRing, AsyncNetmapTxRing, TokioNetmap};
-
 
 pub use crate::{error::Error, frame::Frame};
 
@@ -137,8 +135,12 @@ pub use crate::{
 
 #[cfg(test)]
 mod tests {
+    use crate::prelude::*;
+
     #[test]
     fn it_works() {
-        assert_eq!(2 + 2, 4);
+        let frame = Frame::new(b"smoke");
+        assert_eq!(frame.len(), 5);
+        assert!(!Error::WouldBlock.to_string().is_empty());
     }
 }

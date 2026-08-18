@@ -22,7 +22,7 @@ fn main() -> Result<(), Error> {
 
     // Original data
     let original_data = b"Hello Netmap with FEC!".to_vec();
-    let chunk_size = (original_data.len() + DATA_SHARDS - 1) / DATA_SHARDS;
+    let chunk_size = original_data.len().div_ceil(DATA_SHARDS);
     let mut shards = Vec::with_capacity(TOTAL_SHARDS);
 
     for i in 0..DATA_SHARDS {
@@ -55,21 +55,24 @@ fn main() -> Result<(), Error> {
     let mut received_count = 0;
 
     println!("Receiving shards (simulating loss of shard 0)...");
-    for _ in 0..10 { // Try to receive for a bit
+    for _ in 0..10 {
+        // Try to receive for a bit
         rx_ring.sync();
         while let Some(frame) = rx_ring.recv() {
             let payload = frame.payload();
-            if payload.is_empty() { continue; }
+            if payload.is_empty() {
+                continue;
+            }
             let shard_index = payload[0] as usize;
 
             // SIMULATE LOSS OF SHARD 0
             if shard_index == 0 && received_shards[0].is_none() && received_count < DATA_SHARDS {
-                 println!("Simulated loss of shard 0");
-                 received_shards[0] = Some(vec![]); // Mark as lost for reconstruction logic
-                 // but don't actually store it / increment received_count for it yet
-                 // to ensure reconstruction is attempted.
-                 // For this test, we'll actually skip storing it to force reconstruction.
-                 continue;
+                println!("Simulated loss of shard 0");
+                received_shards[0] = Some(vec![]); // Mark as lost for reconstruction logic
+                                                   // but don't actually store it / increment received_count for it yet
+                                                   // to ensure reconstruction is attempted.
+                                                   // For this test, we'll actually skip storing it to force reconstruction.
+                continue;
             }
 
             if shard_index < TOTAL_SHARDS && received_shards[shard_index].is_none() {
@@ -77,12 +80,15 @@ fn main() -> Result<(), Error> {
                 received_count += 1;
                 println!("Received shard {}", shard_index);
             }
-            if received_count >= DATA_SHARDS { break; }
+            if received_count >= DATA_SHARDS {
+                break;
+            }
         }
-        if received_count >= DATA_SHARDS { break; }
+        if received_count >= DATA_SHARDS {
+            break;
+        }
         std::thread::sleep(Duration::from_millis(50));
     }
-
 
     if received_count < DATA_SHARDS {
         eprintln!("Did not receive enough shards to reconstruct.");
@@ -94,8 +100,8 @@ fn main() -> Result<(), Error> {
         Ok(_) => {
             println!("Reconstruction successful!");
             let mut reconstructed_data = Vec::new();
-            for i in 0..DATA_SHARDS {
-                if let Some(shard_data) = &received_shards[i] {
+            for (i, shard_data) in received_shards.iter().enumerate().take(DATA_SHARDS) {
+                if let Some(shard_data) = shard_data {
                     reconstructed_data.extend_from_slice(shard_data);
                 } else {
                     eprintln!("Missing data shard {} after reconstruction attempt.", i);
@@ -106,11 +112,20 @@ fn main() -> Result<(), Error> {
             reconstructed_data.truncate(original_data.len());
 
             if reconstructed_data == original_data {
-                println!("Data successfully reconstructed: {:?}", String::from_utf8_lossy(&reconstructed_data));
+                println!(
+                    "Data successfully reconstructed: {:?}",
+                    String::from_utf8_lossy(&reconstructed_data)
+                );
             } else {
                 eprintln!("Data mismatch after reconstruction!");
-                eprintln!("Original:       {:?}", String::from_utf8_lossy(&original_data));
-                eprintln!("Reconstructed:  {:?}", String::from_utf8_lossy(&reconstructed_data));
+                eprintln!(
+                    "Original:       {:?}",
+                    String::from_utf8_lossy(&original_data)
+                );
+                eprintln!(
+                    "Reconstructed:  {:?}",
+                    String::from_utf8_lossy(&reconstructed_data)
+                );
             }
         }
         Err(e) => {

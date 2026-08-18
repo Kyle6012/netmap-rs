@@ -22,7 +22,7 @@
 
 use std::env;
 use std::error::Error;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::Ipv4Addr;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -40,7 +40,7 @@ fn ip_checksum(data: &[u8]) -> u16 {
     let mut i = 0;
     while i < data.len() {
         let word = if i + 1 < data.len() {
-            (data[i] as u16) << 8 | (data[i+1] as u16)
+            (data[i] as u16) << 8 | (data[i + 1] as u16)
         } else {
             (data[i] as u16) << 8
         };
@@ -52,7 +52,6 @@ fn ip_checksum(data: &[u8]) -> u16 {
     }
     !sum as u16
 }
-
 
 fn build_udp_packet(
     src_mac: [u8; 6],
@@ -96,7 +95,7 @@ fn build_udp_packet(
     let udp_len = (UDP_HDR_LEN + payload.len()) as u16;
     packet.extend_from_slice(&udp_len.to_be_bytes()); // Length
     packet.extend_from_slice(&[0x00, 0x00]); // Checksum (optional for IPv4, 0 means no checksum)
-                                            // Calculating UDP checksum requires pseudo-header, skipping for simplicity.
+                                             // Calculating UDP checksum requires pseudo-header, skipping for simplicity.
 
     // Payload
     packet.extend_from_slice(payload);
@@ -111,13 +110,18 @@ fn main() -> Result<(), Box<dyn Error>> {
             "Usage: {} <interface_name_with_caret> <src_ip> <dst_ip> <dst_port>",
             args[0]
         );
-        eprintln!("Example: {} netmap:eth0^ 192.168.1.100 192.168.1.1 5000", args[0]);
+        eprintln!(
+            "Example: {} netmap:eth0^ 192.168.1.100 192.168.1.1 5000",
+            args[0]
+        );
         return Err("Invalid arguments".into());
     }
 
     let if_name = &args[1];
     if !if_name.contains('^') {
-         return Err("Invalid arguments: Interface name must include '^' suffix for host stack.".into());
+        return Err(
+            "Invalid arguments: Interface name must include '^' suffix for host stack.".into(),
+        );
     }
     let src_ip = Ipv4Addr::from_str(&args[2])?;
     let dst_ip = Ipv4Addr::from_str(&args[3])?;
@@ -141,7 +145,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     if nm_desc.num_tx_rings() == 0 {
-        eprintln!("No host TX rings available for interface {}. Exiting.", if_name);
+        eprintln!(
+            "No host TX rings available for interface {}. Exiting.",
+            if_name
+        );
         return Ok(());
     }
 
@@ -157,15 +164,24 @@ fn main() -> Result<(), Box<dyn Error>> {
     let dst_mac: [u8; 6] = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x02]; // Often broadcast/multicast or router MAC for external
 
     let payload = b"Hello from netmap-rs to host stack!";
-    let packet = build_udp_packet(src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, payload);
+    let packet = build_udp_packet(
+        src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, payload,
+    );
 
-    println!("Sending packet ({} bytes) to host stack: {:02X?}", packet.len(), &packet[..std::cmp::min(packet.len(), 48)]);
+    println!(
+        "Sending packet ({} bytes) to host stack: {:02X?}",
+        packet.len(),
+        &packet[..std::cmp::min(packet.len(), 48)]
+    );
 
     match tx_ring.send(&packet) {
         Ok(_) => {
             tx_ring.sync(); // Ensure packet is processed
             println!("Packet sent successfully to host stack via Netmap.");
-            println!("Try listening with: sudo tcpdump -i <base_if_name> -n udp port {} and host {}", dst_port, dst_ip);
+            println!(
+                "Try listening with: sudo tcpdump -i <base_if_name> -n udp port {} and host {}",
+                dst_port, dst_ip
+            );
         }
         Err(e) => {
             eprintln!("Failed to send packet: {:?}", e);
@@ -176,7 +192,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     // Send a few packets
     for i in 0..3 {
         let dynamic_payload = format!("Hello #{} from netmap-rs to host stack!", i);
-        let packet = build_udp_packet(src_mac, dst_mac, src_ip, dst_ip, src_port, dst_port, dynamic_payload.as_bytes());
+        let packet = build_udp_packet(
+            src_mac,
+            dst_mac,
+            src_ip,
+            dst_ip,
+            src_port,
+            dst_port,
+            dynamic_payload.as_bytes(),
+        );
         if tx_ring.send(&packet).is_ok() {
             println!("Sent dynamic packet #{}", i);
         } else {

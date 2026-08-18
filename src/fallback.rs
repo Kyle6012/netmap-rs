@@ -60,5 +60,65 @@ pub fn create_fallback_channel(max_size: usize) -> (FallbackTxRing, FallbackRxRi
         queue: Arc::new(Mutex::new(VecDeque::new())),
         max_size,
     };
-    (FallbackTxRing(shared_ring.clone()), FallbackRxRing(shared_ring))
+    (
+        FallbackTxRing(shared_ring.clone()),
+        FallbackRxRing(shared_ring),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_ring_returns_none() {
+        let rx = FallbackRxRing::new(4);
+        assert!(rx.recv().is_none());
+    }
+
+    #[test]
+    fn send_recv_single() {
+        let tx = FallbackTxRing::new(4);
+        let rx = FallbackRxRing::new(4);
+        // Not connected; create channel instead.
+        drop(tx);
+        drop(rx);
+        let (tx, rx) = create_fallback_channel(4);
+        tx.send(b"ping").unwrap();
+        let frame = rx.recv().unwrap();
+        assert_eq!(frame.payload(), b"ping");
+    }
+
+    #[test]
+    fn send_recv_in_order() {
+        let (tx, rx) = create_fallback_channel(16);
+        for i in 0..8u8 {
+            tx.send(&[i]).unwrap();
+        }
+        for i in 0..8u8 {
+            let frame = rx.recv().unwrap();
+            assert_eq!(frame.payload(), &[i]);
+        }
+        assert!(rx.recv().is_none());
+    }
+
+    #[test]
+    fn full_ring_returns_would_block() {
+        let (tx, rx) = create_fallback_channel(2);
+        tx.send(b"a").unwrap();
+        tx.send(b"b").unwrap();
+        assert!(matches!(tx.send(b"c"), Err(Error::WouldBlock)));
+        // Drain one and retry.
+        rx.recv().unwrap();
+        assert!(tx.send(b"c").is_ok());
+    }
+
+    #[test]
+    fn oversize_buffers_are_copied() {
+        let (tx, rx) = create_fallback_channel(4);
+        let payload = vec![0xabu8; 4096];
+        tx.send(&payload).unwrap();
+        let frame = rx.recv().unwrap();
+        assert_eq!(frame.payload(), payload.as_slice());
+    }
 }

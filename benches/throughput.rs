@@ -1,4 +1,4 @@
-use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use netmap_rs::prelude::*;
 use std::time::Duration;
 
@@ -6,7 +6,7 @@ fn throughput(c: &mut Criterion) {
     let nm = NetmapBuilder::new("netmap:eth0")
         .num_tx_rings(1)
         .num_rx_rings(1)
-        .open()
+        .build()
         .expect("Failed to open Netmap interface");
 
     let mut tx_ring = nm.tx_ring(0).expect("Failed to get TX ring");
@@ -18,10 +18,10 @@ fn throughput(c: &mut Criterion) {
     for size in [64, 128, 256, 512, 1024, 1500].iter() {
         group.throughput(Throughput::Bytes(*size as u64));
 
-        let payload = vec![0u8: *size];
+        let payload = vec![0u8; *size];
         let batch_size = 64;
 
-        group.benchmark_group(&format!("{}_bytes", size), |b| {
+        group.bench_function(format!("{}_bytes", size), |b| {
             b.iter(|| {
                 // send batch
                 let mut reservation = tx_ring
@@ -39,7 +39,7 @@ fn throughput(c: &mut Criterion) {
                 tx_ring.sync();
 
                 // receive batch
-                let mut frames = vec![Frame::default(); batch_size];
+                let mut frames: Vec<Frame> = (0..batch_size).map(|_| Frame::new(&[])).collect();
                 let mut received = 0;
                 while received < batch_size {
                     received += rx_ring.recv_batch(&mut frames[received..]);
@@ -53,7 +53,7 @@ fn throughput(c: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default().warm_up_time(Duration::from_secs(!));
+    config = Criterion::default().warm_up_time(Duration::from_secs(1));
     targets = throughput
 }
 

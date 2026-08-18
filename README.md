@@ -495,39 +495,86 @@ fn main() -> Result<(), Error> {
 
 ### Async Support
 
-Enable the `tokio-async` feature for async/await support:
+Enable the `tokio-async` feature for async/await support. Build a `Netmap` with
+`NetmapBuilder`, wrap it in `TokioNetmap`, then drive the async ring wrappers
+(`AsyncNetmapRxRing` implements `AsyncRead`, `AsyncNetmapTxRing` implements
+`AsyncWrite`) from within a Tokio runtime:
 
 ```rust
-use netmap_rs::tokio_async::*;
-use tokio::time::{sleep, Duration};
+use netmap_rs::NetmapBuilder;
+use netmap_rs::tokio_async::TokioNetmap;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let nm = TokioNetmap::new("eth0").await?;
-    let mut rx_ring = nm.async_rx_ring(0).await?;
-    
-    loop {
-        if let Some(frame) = rx_ring.recv().await? {
-            println!("Received: {:?}", frame.payload());
-        }
-        sleep(Duration::from_millis(10)).await;
-    }
+    // Open a netmap pipe (purely in-memory, no physical NIC required).
+    let nm = NetmapBuilder::new("netmap:pipe{example}").build()?;
+    let tokio_nm = TokioNetmap::new(nm)?;
+
+    let mut tx = tokio_nm.tx_ring(0)?;
+    let mut rx = tokio_nm.rx_ring(0)?;
+
+    let mut buf = [0u8; 64];
+    let n = rx.read(&mut buf).await?;
+    println!("Received: {:?}", &buf[..n]);
+
+    tx.write_all(b"hello async netmap").await?;
+    tx.flush().await?;
+    Ok(())
 }
 ```
 
-## Examples
+> **Tip:** For local, non-blocking experimentation you do not need a physical
+> NIC — netmap pipes (`pipe{name}` / `pipe}name`) and VALE ports
+> (`vale0:port`) are virtual ports managed entirely in kernel memory.
 
-The `examples/` directory contains several complete examples:
+## Testing without a physical NIC (the "virtual lab")
+
+You do **not** need to touch any real network interface to try `netmap-rs`.
+Netmap provides two kinds of purely virtual, in-memory ports that never touch
+your physical adapters or the host network stack:
+
+* **VALE ports** (`vale0:port_name`) — an in-kernel Ethernet switch. Attach
+  two ports on the same switch and they can exchange frames like on a real
+  switch. Note VALE enforces the Ethernet minimum frame size (14 bytes), so
+  keep payloads at least 14 bytes long.
+* **Netmap pipes** (`pipe{name` / `pipe}name`) — a bidirectional byte channel
+  between two endpoints. Use the master endpoint in one process and the slave
+  endpoint in another (or both in one process).
+
+```bash
+# Nothing to set up: opening a VALE port or pipe registers it on demand.
+cargo run --example ping_pong --features sys
+```
+
+The crate's integration test suite runs entirely against VALE ports and pipes,
+so it never attaches to (or disrupts) your live NICs.
+
+## Examples and apps
+
+The `examples/` directory contains small, self-contained demos:
 
 - `ping_pong.rs` - Basic send/receive example
 - `sliding_window_arq.rs` - Reliable delivery with ARQ
 - `fec.rs` - Forward Error Correction
 - `thread_per_ring.rs` - Thread-per-ring pattern
+- `tokio_pipe_async.rs` - Async I/O over a netmap pipe with Tokio
 
-Run examples with:
+The `apps/` directory mirrors the layout of the upstream netmap C repo and
+holds ready-to-run utilities:
+
+- `apps/pkt-gen` - Packet generator / drainer (netmap's `pkt-gen` equivalent)
+- `apps/vale-ctl` - VALE switch and port management
+- `apps/ping` - Send and echo packets over a pipe
+- `apps/bridge` - Forward frames between two VALE ports
+- `apps/tokio-proxy` - Async pipe proxy using Tokio
+
+Run examples and apps with:
 
 ```bash
 cargo run --example ping_pong --features sys
+cargo run --bin pkt-gen --features sys -- -i vale0:p0 -f tx
+cargo run --bin vale-ctl --features sys -- -a vale0:p0 -a vale0:p1
 ```
 
 ## Performance Tips

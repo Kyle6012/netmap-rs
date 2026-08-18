@@ -20,7 +20,7 @@ use std::time::Duration;
 
 use netmap_rs::prelude::*;
 
-const PIPE_NAME: &str = "netmap:pipe{interproc_example_789}"; // Must match sender
+const PIPE_NAME: &str = "netmap:pipe{iproc789}"; // Must match sender
 const NUM_EXPECTED_PACKETS_IPC: usize = 3;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -33,7 +33,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         .build()
         .map_err(|e| format!("[Receiver Process] Failed to open pipe endpoint: {:?}", e))?;
 
-    println!("[Receiver Process] Pipe endpoint opened. RX rings: {}, TX rings: {}", pipe_ep.num_rx_rings(), pipe_ep.num_tx_rings());
+    println!(
+        "[Receiver Process] Pipe endpoint opened. RX rings: {}, TX rings: {}",
+        pipe_ep.num_rx_rings(),
+        pipe_ep.num_tx_rings()
+    );
 
     if pipe_ep.num_rx_rings() == 0 {
         eprintln!("[Receiver Process] No RX rings available. Exiting.");
@@ -59,17 +63,21 @@ fn main() -> Result<(), Box<dyn Error>> {
             if frame.is_empty() {
                 continue;
             }
-            received_in_batch +=1;
+            received_in_batch += 1;
             println!(
                 "[Receiver Process] Received packet {} ({} bytes): {:?}",
-                packets_received_count, frame.len(), std::str::from_utf8(frame.payload()).unwrap_or("non-utf8")
+                packets_received_count,
+                frame.len(),
+                std::str::from_utf8(frame.payload()).unwrap_or("non-utf8")
             );
             packets_received_count += 1;
             if packets_received_count == NUM_EXPECTED_PACKETS_IPC {
                 break;
             }
         }
-        if !running.load(Ordering::Relaxed) { break; }
+        if !running.load(Ordering::Relaxed) {
+            break;
+        }
 
         if received_in_batch == 0 {
             thread::sleep(Duration::from_millis(100)); // Wait if no packets
@@ -77,9 +85,15 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if packets_received_count >= NUM_EXPECTED_PACKETS_IPC {
-        println!("[Receiver Process] Received expected {} packets.", NUM_EXPECTED_PACKETS_IPC);
+        println!(
+            "[Receiver Process] Received expected {} packets.",
+            NUM_EXPECTED_PACKETS_IPC
+        );
     } else {
-        println!("[Receiver Process] Stopped. Received {} out of {} expected packets.", packets_received_count, NUM_EXPECTED_PACKETS_IPC);
+        println!(
+            "[Receiver Process] Stopped. Received {} out of {} expected packets.",
+            packets_received_count, NUM_EXPECTED_PACKETS_IPC
+        );
     }
 
     Ok(())

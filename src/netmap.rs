@@ -1,14 +1,15 @@
 #![cfg(feature = "sys")]
+#![allow(elided_lifetimes_in_paths)]
+#![allow(mismatched_lifetime_syntaxes)]
 
 use std::ffi::CString;
 use std::marker::PhantomData;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::ptr;
-use std::sync::Arc;
 
 use crate::error::Error;
 use crate::ffi;
-use crate::ring::{Ring, RxRing, TxRing};
+use crate::ring::{RxRing, TxRing};
 
 /// Builder for configuring and opening a Netmap interface.
 ///
@@ -40,7 +41,7 @@ pub struct NetmapBuilder {
     // For VALE/pipes, this is the full VALE/pipe name (e.g. "vale0:1", "pipe{abc").
     base_ifname: String,
     wants_host_rings: bool, // True if ifname ends with '^'
-    is_pipe_if: bool,       // True if ifname is a pipe (e.g. "pipe{name}")
+    is_pipe_if: bool,       // True if ifname is a pipe (e.g. "pipe{NN" or "pipe}NN")
 
     // These will be interpreted as HW, Host, or Pipe rings based on above flags
     req_num_tx_rings: u16,
@@ -50,7 +51,6 @@ pub struct NetmapBuilder {
     // For now, let Netmap decide these based on rings, or expose later.
     // req_tx_slots: u32,
     // req_rx_slots: u32,
-
     /// For `nr_flags` like `NETMAP_NO_TX_POLL`, `NETMAP_DO_RX_POLL`, etc.
     /// Registration mode flags (`NR_REG_*`) will be handled internally based on ifname suffix.
     additional_flags: u32,
@@ -112,7 +112,8 @@ impl NetmapBuilder {
         // OS interface names like "eth0" also go into nr_name.
         // The raw_name_to_use (e.g. "netmap:eth0^") is for nm_open's first argument.
 
-        let is_pipe = base_name_for_req.starts_with("pipe{") && base_name_for_req.ends_with('}');
+        let is_pipe =
+            base_name_for_req.starts_with("pipe{") || base_name_for_req.starts_with("pipe}");
 
         // For pipes, default to 1 TX and 1 RX ring if user doesn't specify.
         // For other types, default to 0 (all available).
@@ -198,47 +199,46 @@ impl NetmapBuilder {
         }
 
         let mut req_flags = self.additional_flags;
-        let mut hw_tx_rings = 0;
-        let mut hw_rx_rings = 0;
-        let mut host_tx_rings = 0;
-        let mut host_rx_rings = 0;
-
-        if self.is_pipe_if {
-            // For pipes, nr_tx_rings and nr_rx_rings specify the rings for this endpoint.
-            // nr_host_* rings are 0. No specific NR_REG_* flag is needed here,
-            // as the pipe name itself implies the type.
-            hw_tx_rings = self.req_num_tx_rings; // Netmap uses these for pipes
-            hw_rx_rings = self.req_num_rx_rings; // Netmap uses these for pipes
+        let (hw_tx_rings, hw_rx_rings, max_ring_id) = if self.is_pipe_if {
+            // For pipes, nr_tx_rings and nr_rx_rings specify the rings for this
+            // endpoint. The legacy API encodes pipes via the port name itself
+            // ("pipe{NN" for the master, "pipe}NN" for the slave). nm_open
+            // derives the registration mode from the port name, so we only
+            // need to set the ring counts here.
+            (self.req_num_tx_rings, self.req_num_rx_rings, 0)
         } else if self.wants_host_rings {
-            req_flags |= ffi::NR_REG_SW_ONLY; // Request only host stack rings
-            host_tx_rings = self.req_num_tx_rings;
-            host_rx_rings = self.req_num_rx_rings;
-            // hw_tx_rings and hw_rx_rings remain 0
+            // Request only host stack rings. The legacy API selects host rings
+            // through the ring-id: apply the NETMAP_SW_RING bit so the kernel
+            // registers the SW (host) rings.
+            req_flags |= ffi::NR_REG_SW as u32;
+            (
+                self.req_num_tx_rings,
+                self.req_num_rx_rings,
+                ffi::NETMAP_SW_RING as u16,
+            )
         } else {
-            // Default behavior: request hardware rings for physical/VALE interfaces.
-            req_flags |= ffi::NR_REG_NIC_ONLY; // Request only NIC rings
-            hw_tx_rings = self.req_num_tx_rings;
-            hw_rx_rings = self.req_num_rx_rings;
-            // host_tx_rings and host_rx_rings remain 0
-        }
+            // Default behavior: request hardware rings for physical/VALE
+            // interfaces.
+            req_flags |= ffi::NR_REG_NIC_ONLY;
+            (self.req_num_tx_rings, self.req_num_rx_rings, 0)
+        };
 
         Ok(ffi::nmreq {
             nr_name: nr_name_bytes,
-            nr_version: ffi::NETMAP_API as u16,
+            nr_version: ffi::NETMAP_API,
             nr_offset: 0,
             nr_memsize: 0,
-            nr_tx_slots: 0,  // Let netmap decide by default, or allow configuration later
-            nr_rx_slots: 0,  // Let netmap decide by default
-            nr_tx_rings: hw_tx_rings, // For pipes, these are used for the pipe's TX rings
-            nr_rx_rings: hw_rx_rings, // For pipes, these are used for the pipe's RX rings
-            nr_host_tx_rings: host_tx_rings,
-            nr_host_rx_rings: host_rx_rings,
-            nr_ringid: 0, // Request all rings for the component (NIC/host/pipe endpoint)
-            nr_flags: req_flags,
+            nr_tx_slots: 0, // Let netmap decide by default, or allow configuration later
+            nr_rx_slots: 0, // Let netmap decide by default
+            nr_tx_rings: hw_tx_rings,
+            nr_rx_rings: hw_rx_rings,
+            nr_ringid: max_ring_id, // 0 selects all rings of the requested kind
+            nr_cmd: 0,
             nr_arg1: 0,
             nr_arg2: 0,
-            nr_arg3: 0, // Renamed from spare in newer netmap versions
-            spare1: [0; 1], // Keep spare for compatibility if arg3 is not yet in ffi bindings
+            nr_arg3: 0,
+            nr_flags: req_flags,
+            spare2: [0; 1],
         })
     }
 
@@ -247,17 +247,20 @@ impl NetmapBuilder {
         let req = self.build_nmreq()?;
 
         // Use the raw ifname (e.g., "netmap:eth0^") for nm_open, as netmap parses it.
-        let c_ifname_raw = CString::new(self.ifname_raw.as_str())
-            .map_err(|_| Error::BindFail(format!("Invalid raw interface name: {}", self.ifname_raw)))?;
+        let c_ifname_raw = CString::new(self.ifname_raw.as_str()).map_err(|_| {
+            Error::BindFail(format!("Invalid raw interface name: {}", self.ifname_raw))
+        })?;
 
         // The actual nm_open call
-        // The third argument to nm_open (nm_ifp) is for reusing memory from another descriptor, pass null.
-        let desc_ptr = unsafe { ffi::nm_open(c_ifname_raw.as_ptr(), &req as *const _, ptr::null_mut(), ptr::null_mut()) };
+        // The fourth argument to nm_open (nm_ifp) is for reusing memory from
+        // another descriptor, pass null.
+        let desc_ptr = unsafe { ffi::nm_open(c_ifname_raw.as_ptr(), &req, 0u64, ptr::null()) };
 
         if desc_ptr.is_null() {
             return Err(Error::BindFail(format!(
                 "Failed to open interface via nm_open for '{}'. Errno: {}",
-                self.ifname_raw, std::io::Error::last_os_error()
+                self.ifname_raw,
+                std::io::Error::last_os_error()
             )));
         }
 
@@ -265,11 +268,23 @@ impl NetmapBuilder {
         let nifp = unsafe { (*desc_ptr).nifp };
         let (actual_num_tx, actual_num_rx, final_is_host_if) = if self.is_pipe_if {
             // For pipes, counts come from ni_tx_rings and ni_rx_rings, and it's not a host_if.
-            (unsafe { (*nifp).ni_tx_rings } as usize, unsafe { (*nifp).ni_rx_rings } as usize, false)
+            (
+                unsafe { (*nifp).ni_tx_rings } as usize,
+                unsafe { (*nifp).ni_rx_rings } as usize,
+                false,
+            )
         } else if self.wants_host_rings {
-            (unsafe { (*nifp).ni_host_tx_rings } as usize, unsafe { (*nifp).ni_host_rx_rings } as usize, true)
+            (
+                unsafe { (*nifp).ni_host_tx_rings } as usize,
+                unsafe { (*nifp).ni_host_rx_rings } as usize,
+                true,
+            )
         } else {
-            (unsafe { (*nifp).ni_tx_rings } as usize, unsafe { (*nifp).ni_rx_rings } as usize, false)
+            (
+                unsafe { (*nifp).ni_tx_rings } as usize,
+                unsafe { (*nifp).ni_rx_rings } as usize,
+                false,
+            )
         };
 
         Ok(Netmap {
@@ -291,6 +306,7 @@ impl NetmapBuilder {
 /// Depending on how it was built (e.g., with a `^` suffix in the interface name
 /// passed to `NetmapBuilder::new`), this instance will provide access to either
 /// hardware rings or host stack rings.
+#[derive(Debug)]
 pub struct Netmap {
     desc: *mut ffi::nm_desc,
     num_tx_rings: usize, // Actual number of TX rings (either HW or Host based on is_host_if)
@@ -300,6 +316,11 @@ pub struct Netmap {
 }
 
 unsafe impl Send for Netmap {}
+
+// Safe: concurrent access to distinct rings is safe because each ring is owned
+// by a single thread at a time, and the shared descriptor state is only read
+// (counts) or guarded by the kernel.
+unsafe impl Sync for Netmap {}
 
 // The direct `Netmap::open()` static method was removed in favor of the builder pattern.
 // Use `NetmapBuilder::new(ifname).build()` instead.
@@ -351,8 +372,8 @@ impl Netmap {
         }
 
         unsafe {
-            let ring = ffi::NETMAP_TXRING((*self.desc).nifp, index as u32);
-            Ok(TxRing::new(ring, index))
+            let ring = ffi::NETMAP_TXRING(self.nifp(), index as u32);
+            Ok(TxRing::new(ring, self.fd(), index))
         }
     }
 
@@ -370,8 +391,8 @@ impl Netmap {
             return Err(Error::InvalidRingIndex(index));
         }
         unsafe {
-            let ring = ffi::NETMAP_RXRING((*self.desc).nifp, index as u32);
-            Ok(RxRing::new(ring, index))
+            let ring = ffi::NETMAP_RXRING(self.nifp(), index as u32);
+            Ok(RxRing::new(ring, self.fd(), index))
         }
     }
 }
@@ -387,5 +408,17 @@ impl Drop for Netmap {
 impl AsRawFd for Netmap {
     fn as_raw_fd(&self) -> RawFd {
         unsafe { (*self.desc).fd }
+    }
+}
+
+impl Netmap {
+    /// Raw file descriptor of the underlying `/dev/netmap` device.
+    pub(crate) fn fd(&self) -> i32 {
+        unsafe { (*self.desc).fd }
+    }
+
+    /// Pointer to the `netmap_if` of this descriptor.
+    pub(crate) fn nifp(&self) -> *const ffi::netmap_if {
+        unsafe { (*self.desc).nifp }
     }
 }

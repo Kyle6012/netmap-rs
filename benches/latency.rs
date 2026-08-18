@@ -1,4 +1,4 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use netmap_rs::prelude::*;
 use std::time::Duration;
 
@@ -6,32 +6,30 @@ fn single_packet_latency(c: &mut Criterion) {
     let nm = NetmapBuilder::new("netmap:eth0")
         .num_tx_rings(1)
         .num_rx_rings(1)
-        .open()
+        .build()
         .expect("Failed to Open Netmap interface");
 
     let mut tx_ring = nm.tx_ring(0).expect("Failed to get TX ring");
     let mut rx_ring = nm.rx_ring(0).expect("Failed to get RX ring");
     let payload = vec![0u8; 64]; // 64 byte packet
 
-    c.bench_function(
-        "single_packet_round_trip" | b | {
-            b.iter(|| {
-                tx_ring.send(black_box(&payload)).expect("Send failed");
-                tx_ring.sync();
+    c.bench_function("single_packet_round_trip", |b| {
+        b.iter(|| {
+            tx_ring.send(black_box(&payload)).expect("Send failed");
+            tx_ring.sync();
 
-                while rx_ring.recv().is_none() {
-                    // spin until the packet is received
-                }
-            });
-        },
-    );
+            while rx_ring.recv().is_none() {
+                // spin until the packet is received
+            }
+        });
+    });
 }
 
 fn batch_latency(c: &mut Criterion) {
     let nm = NetmapBuilder::new("netmap:eth0")
         .num_tx_rings(1)
         .num_rx_rings(1)
-        .open()
+        .build()
         .expect("Failed to open Netmap interface");
 
     let mut tx_ring = nm.tx_ring(0).expect("Failed to get TX ring");

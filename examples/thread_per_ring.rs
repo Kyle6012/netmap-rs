@@ -1,6 +1,5 @@
 //! Thread-per-ring with core pinning example
 
-use core_affinity::CoreId;
 use netmap_rs::prelude::*;
 #[cfg(feature = "sys")]
 use std::sync::Arc;
@@ -13,7 +12,7 @@ fn main() -> Result<(), Error> {
         let nm = NetmapBuilder::new("netmap:eth0")
             .num_tx_rings(4)
             .num_rx_rings(4)
-            .open()?;
+            .build()?;
         Arc::new(nm)
     };
 
@@ -22,6 +21,7 @@ fn main() -> Result<(), Error> {
         Vec::new()
     });
 
+    #[cfg(not(feature = "sys"))]
     let num_sim_threads = 4; // For fallback mode, simulate this many threads
 
     #[cfg(feature = "sys")]
@@ -48,13 +48,20 @@ fn main() -> Result<(), Error> {
                     eprintln!("RX thread {}: Failed to pin to core {:?}", i, core_id);
                 }
             } else {
-                 println!("RX thread {} not pinned (no core_ids available or pinning failed).", i);
+                println!(
+                    "RX thread {} not pinned (no core_ids available or pinning failed).",
+                    i
+                );
             }
 
             #[cfg(feature = "sys")]
             {
                 let mut rx_ring = nm_clone_sys.rx_ring(i).unwrap();
-                println!("RX thread {} (sys) started on core {:?}", i, core_id_to_pin.map(|c| c.id));
+                println!(
+                    "RX thread {} (sys) started on core {:?}",
+                    i,
+                    core_id_to_pin.map(|c| c.id)
+                );
 
                 let mut counter = 0;
                 let start = std::time::Instant::now();
@@ -99,19 +106,26 @@ fn main() -> Result<(), Error> {
 
         thread::spawn(move || {
             if let Some(core_id) = core_id_to_pin {
-                 if core_affinity::set_for_current(core_id) {
+                if core_affinity::set_for_current(core_id) {
                     println!("TX thread {} nominally pinned to core {:?}", i, core_id);
                 } else {
                     eprintln!("TX thread {}: Failed to pin to core {:?}", i, core_id);
                 }
             } else {
-                println!("TX thread {} not pinned (no core_ids available or pinning failed).", i);
+                println!(
+                    "TX thread {} not pinned (no core_ids available or pinning failed).",
+                    i
+                );
             }
 
             #[cfg(feature = "sys")]
             {
                 let mut tx_ring = nm_clone_sys.tx_ring(i).unwrap();
-                println!("TX thread {} (sys) started on core {:?}", i, core_id_to_pin.map(|c| c.id));
+                println!(
+                    "TX thread {} (sys) started on core {:?}",
+                    i,
+                    core_id_to_pin.map(|c| c.id)
+                );
 
                 let payload = vec![0u8; 64];
                 let mut counter = 0;

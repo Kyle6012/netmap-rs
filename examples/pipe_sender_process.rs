@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use netmap_rs::prelude::*;
 
-const PIPE_NAME: &str = "netmap:pipe{interproc_example_789}"; // Must match receiver
+const PIPE_NAME: &str = "netmap:pipe{iproc789}"; // Must match receiver
 const NUM_PACKETS_IPC: usize = 3;
 const PACKET_BASE_PAYLOAD_IPC: &[u8] = b"IPC Hello from Process A, msg=";
 
@@ -29,9 +29,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         .num_tx_rings(1) // Pipes default to 1 TX, 1 RX.
         .num_rx_rings(1)
         .build()
-        .map_err(|e| format!("[Sender Process] Failed to open pipe endpoint: {:?}. Is receiver running?", e))?;
+        .map_err(|e| {
+            format!(
+                "[Sender Process] Failed to open pipe endpoint: {:?}. Is receiver running?",
+                e
+            )
+        })?;
 
-    println!("[Sender Process] Pipe endpoint opened. TX rings: {}, RX rings: {}", pipe_ep.num_tx_rings(), pipe_ep.num_rx_rings());
+    println!(
+        "[Sender Process] Pipe endpoint opened. TX rings: {}, RX rings: {}",
+        pipe_ep.num_tx_rings(),
+        pipe_ep.num_rx_rings()
+    );
 
     if pipe_ep.num_tx_rings() == 0 {
         eprintln!("[Sender Process] No TX rings available. Exiting.");
@@ -44,7 +53,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         let mut payload = PACKET_BASE_PAYLOAD_IPC.to_vec();
         payload.extend_from_slice(i.to_string().as_bytes());
 
-        print!("[Sender Process] Sending packet {} ({} bytes): {:?}...", i, payload.len(), std::str::from_utf8(&payload).unwrap_or("non-utf8"));
+        print!(
+            "[Sender Process] Sending packet {} ({} bytes): {:?}...",
+            i,
+            payload.len(),
+            std::str::from_utf8(&payload).unwrap_or("non-utf8")
+        );
         match tx_ring.send(&payload) {
             Ok(_) => {
                 tx_ring.sync();

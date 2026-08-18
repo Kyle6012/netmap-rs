@@ -5,7 +5,7 @@ use std::time::Duration;
 
 fn main() -> Result<(), Error> {
     let nm = NetmapBuilder::new("netmap:eth0")
-        .nm_tx_rings(1)
+        .num_tx_rings(1)
         .num_rx_rings(1)
         .build()?;
 
@@ -24,7 +24,8 @@ fn main() -> Result<(), Error> {
             println!("Received packet: {:?}", frame.payload());
             assert_eq!(frame.payload(), b"hello world");
             received = true;
-            break;
+            // drain any further packets too
+            rx_ring.sync();
         }
         if received {
             break;

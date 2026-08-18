@@ -25,15 +25,15 @@ use std::time::Duration;
 
 use netmap_rs::prelude::*;
 
-const PIPE_NAME: &str = "netmap:pipe{intraproc_example_123}"; // Unique pipe name
+const PIPE_NAME: &str = "netmap:pipe{iproc123}"; // Unique pipe name
 const NUM_PACKETS: usize = 5;
 const PACKET_BASE_PAYLOAD: &[u8] = b"Hello from pipe sender, msg=";
 
-fn sender_thread(
-    mut tx_pipe_ep: Netmap,
-    done_tx: mpsc::Sender<String>,
-) -> Result<(), String> {
-    println!("[Sender] Thread started. TX Rings: {}", tx_pipe_ep.num_tx_rings());
+fn sender_thread(tx_pipe_ep: Netmap, done_tx: mpsc::Sender<String>) -> Result<(), String> {
+    println!(
+        "[Sender] Thread started. TX Rings: {}",
+        tx_pipe_ep.num_tx_rings()
+    );
     if tx_pipe_ep.num_tx_rings() == 0 {
         return Err("[Sender] No TX rings available on pipe endpoint.".to_string());
     }
@@ -45,7 +45,12 @@ fn sender_thread(
         let mut payload = PACKET_BASE_PAYLOAD.to_vec();
         payload.extend_from_slice(i.to_string().as_bytes());
 
-        print!("[Sender] Sending packet {} ({} bytes): {:?}...", i, payload.len(), std::str::from_utf8(&payload).unwrap_or("non-utf8"));
+        print!(
+            "[Sender] Sending packet {} ({} bytes): {:?}...",
+            i,
+            payload.len(),
+            std::str::from_utf8(&payload).unwrap_or("non-utf8")
+        );
         match tx_ring.send(&payload) {
             Ok(_) => {
                 tx_ring.sync(); // Make packet visible to receiver
@@ -57,16 +62,18 @@ fn sender_thread(
         }
         thread::sleep(Duration::from_millis(10)); // Small delay
     }
-    done_tx.send("[Sender] All packets sent.".to_string()).unwrap();
+    done_tx
+        .send("[Sender] All packets sent.".to_string())
+        .unwrap();
     Ok(())
 }
 
-fn receiver_thread(
-    mut rx_pipe_ep: Netmap,
-    done_rx: mpsc::Sender<String>,
-) -> Result<(), String> {
-    println!("[Receiver] Thread started. RX Rings: {}", rx_pipe_ep.num_rx_rings());
-     if rx_pipe_ep.num_rx_rings() == 0 {
+fn receiver_thread(rx_pipe_ep: Netmap, done_rx: mpsc::Sender<String>) -> Result<(), String> {
+    println!(
+        "[Receiver] Thread started. RX Rings: {}",
+        rx_pipe_ep.num_rx_rings()
+    );
+    if rx_pipe_ep.num_rx_rings() == 0 {
         return Err("[Receiver] No RX rings available on pipe endpoint.".to_string());
     }
     let mut rx_ring = rx_pipe_ep
@@ -84,16 +91,22 @@ fn receiver_thread(
             if frame.is_empty() {
                 continue;
             }
-            received_in_batch +=1;
+            received_in_batch += 1;
             let mut expected_payload = PACKET_BASE_PAYLOAD.to_vec();
             expected_payload.extend_from_slice(packets_received.to_string().as_bytes());
 
             println!(
                 "[Receiver] Received packet {} ({} bytes): {:?}",
-                packets_received, frame.len(), std::str::from_utf8(frame.payload()).unwrap_or("non-utf8")
+                packets_received,
+                frame.len(),
+                std::str::from_utf8(frame.payload()).unwrap_or("non-utf8")
             );
 
-            assert_eq!(frame.payload(), expected_payload.as_slice(), "Packet content mismatch!");
+            assert_eq!(
+                frame.payload(),
+                expected_payload.as_slice(),
+                "Packet content mismatch!"
+            );
             packets_received += 1;
             if packets_received == NUM_PACKETS {
                 break;
@@ -108,10 +121,18 @@ fn receiver_thread(
     }
 
     if packets_received == NUM_PACKETS {
-        done_rx.send(format!("[Receiver] Successfully received all {} packets.", NUM_PACKETS)).unwrap();
+        done_rx
+            .send(format!(
+                "[Receiver] Successfully received all {} packets.",
+                NUM_PACKETS
+            ))
+            .unwrap();
         Ok(())
     } else {
-        Err(format!("[Receiver] Timed out. Received only {} out of {} packets.", packets_received, NUM_PACKETS))
+        Err(format!(
+            "[Receiver] Timed out. Received only {} out of {} packets.",
+            packets_received, NUM_PACKETS
+        ))
     }
 }
 
@@ -127,8 +148,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         .num_rx_rings(1)
         .build()
         .map_err(|e| format!("Failed to open pipe endpoint 1 (master): {:?}", e))?;
-    println!("Pipe endpoint 1 (master) opened. TX rings: {}, RX rings: {}", pipe_ep1.num_tx_rings(), pipe_ep1.num_rx_rings());
-
+    println!(
+        "Pipe endpoint 1 (master) opened. TX rings: {}, RX rings: {}",
+        pipe_ep1.num_tx_rings(),
+        pipe_ep1.num_rx_rings()
+    );
 
     // Open the second endpoint of the pipe (slave/peer)
     let pipe_ep2 = NetmapBuilder::new(PIPE_NAME)
@@ -136,7 +160,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         .num_rx_rings(1)
         .build()
         .map_err(|e| format!("Failed to open pipe endpoint 2 (slave): {:?}", e))?;
-    println!("Pipe endpoint 2 (slave) opened. TX rings: {}, RX rings: {}", pipe_ep2.num_tx_rings(), pipe_ep2.num_rx_rings());
+    println!(
+        "Pipe endpoint 2 (slave) opened. TX rings: {}, RX rings: {}",
+        pipe_ep2.num_tx_rings(),
+        pipe_ep2.num_rx_rings()
+    );
 
     let (done_tx_s, done_tx_r) = mpsc::channel();
     let (done_rx_s, done_rx_r) = mpsc::channel();

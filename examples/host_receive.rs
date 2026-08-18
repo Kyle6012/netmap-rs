@@ -32,10 +32,7 @@ use netmap_rs::prelude::*;
 fn main() -> Result<(), Box<dyn Error>> {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 || !args[1].contains('^') {
-        eprintln!(
-            "Usage: {} <interface_name_with_caret_suffix>",
-            args[0]
-        );
+        eprintln!("Usage: {} <interface_name_with_caret_suffix>", args[0]);
         eprintln!("Example: {} netmap:eth0^", args[0]);
         return Err("Invalid arguments: Interface name must include '^' suffix.".into());
     }
@@ -61,7 +58,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
 
     if nm_desc.num_rx_rings() == 0 {
-        eprintln!("No host RX rings available for interface {}. Exiting.", if_name);
+        eprintln!(
+            "No host RX rings available for interface {}. Exiting.",
+            if_name
+        );
         return Ok(());
     }
 
@@ -87,7 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 continue;
             }
             packets_received += 1;
-            batch_count +=1;
+            batch_count += 1;
             println!(
                 "Received packet #{} on host ring: len = {} bytes. Payload (first 32 bytes): {:?}",
                 packets_received,
@@ -102,6 +102,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
 
-    println!("\nFinished. Total packets received from host stack: {}", packets_received);
+    println!(
+        "\nFinished. Total packets received from host stack: {}",
+        packets_received
+    );
     Ok(())
 }

@@ -30,7 +30,7 @@ impl Sender {
     }
 
     fn send_packets(&mut self, tx_ring: &mut TxRing) -> Result<(), Error> {
-        while self.next_seq_num < self.base + WINDOW_SIZE {
+        while self.next_seq_num < self.base + WINDOW_SIZE as u32 {
             let packet = format!("Packet {}", self.next_seq_num).into_bytes();
             self.buffer.insert(self.next_seq_num, packet.clone());
             self.timers.insert(self.next_seq_num, Instant::now());
@@ -61,13 +61,14 @@ impl Sender {
             }
         }
 
+        let retransmitted = !retransmit_packets.is_empty();
         for (seq_num, packet_data) in retransmit_packets {
             tx_ring.send(&packet_data)?;
             println!("Retransmitted: Packet {}", seq_num);
             self.timers.insert(seq_num, Instant::now());
             *self.retries.entry(seq_num).or_insert(0) += 1;
         }
-        if !tx_ring.is_empty() {
+        if retransmitted {
             tx_ring.sync();
         }
         Ok(())
@@ -98,8 +99,8 @@ fn main() -> Result<(), Error> {
 
         if let Some(frame) = rx_ring.recv() {
             if let Ok(ack_str) = std::str::from_utf8(frame.payload()) {
-                if ack_str.starts_with("ACK ") {
-                    if let Ok(ack_num) = ack_str[4..].parse::<u32>() {
+                if let Some(ack_str) = ack_str.strip_prefix("ACK ") {
+                    if let Ok(ack_num) = ack_str.parse::<u32>() {
                         sender.handle_ack(ack_num);
                     }
                 }
@@ -107,7 +108,8 @@ fn main() -> Result<(), Error> {
         }
         rx_ring.sync();
 
-        if sender.base >= 10 { // Example: stop after 10 packets are ACKed
+        if sender.base >= 10 {
+            // Example: stop after 10 packets are ACKed
             println!("All packets sent and acknowledged.");
             break;
         }

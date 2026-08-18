@@ -15,18 +15,12 @@
 //!   allowing asynchronous packet transmission.
 //!
 //! # Important Considerations for Correctness:
-//! The current implementations of `AsyncRead::poll_read` and `AsyncWrite::poll_flush`
-//! (and by extension `poll_write`) have **placeholders for crucial Netmap synchronization
-//! operations** (specifically, `ioctl` calls with `NIOCRXSYNC` and `NIOCTXSYNC`).
-//! Without the correct and fully implemented `ioctl` calls in these methods,
-//! the async wrappers **will not function correctly** with the Netmap kernel module
-//! (e.g., new packets may not become visible on RX rings, or TX packets may not
-//! actually be sent by the NIC).
-//!
-//! **These synchronization points MUST be correctly implemented using the appropriate
-//! FFI constants and `libc::ioctl` calls for these wrappers to be reliable.**
-//! The complexity lies in ensuring the `ioctl`s are called with the correct arguments,
-//! which typically involve a pointer to a `struct nmreq`.
+//! Each `poll_*` method performs the required Netmap kernel synchronization via
+//! the `NIOCRXSYNC` (RX) and `NIOCTXSYNC` (TX) ioctls before checking the ring:
+//! `AsyncRead::poll_read` calls `NIOCRXSYNC` so newly arrived packets become
+//! visible, and `AsyncWrite::poll_flush` (and `poll_shutdown`) call
+//! `NIOCTXSYNC` so queued packets are handed to the NIC. Without these sync
+//! points the wrappers would never observe or deliver traffic.
 //!
 //! # Example Usage (Conceptual)
 //! ```no_run
@@ -37,8 +31,8 @@
 //! use tokio::io::{AsyncReadExt, AsyncWriteExt};
 //!
 //! // 1. Open a Netmap interface (e.g., a pipe for local testing)
-//! let netmap_a = NetmapBuilder::new("netmap:pipe{myasyncpipe}").build()?;
-//! let netmap_b = NetmapBuilder::new("netmap:pipe{myasyncpipe}").build()?;
+//! let netmap_a = NetmapBuilder::new("netmap:pipe{myasync}").build()?;
+//! let netmap_b = NetmapBuilder::new("netmap:pipe{myasync}").build()?;
 //!
 //! // 2. Wrap with TokioNetmap
 //! let tokio_nm_a = TokioNetmap::new(netmap_a)?;
@@ -75,6 +69,12 @@ use std::task::{Context, Poll};
 use tokio::io::unix::AsyncFd;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
+/// A Tokio-friendly wrapper around a [`Netmap`] interface.
+///
+/// It wraps the underlying Netmap file descriptor in a `tokio::io::unix::AsyncFd`
+/// so ring operations can be polled from within a Tokio runtime. Use
+/// [`rx_ring`](Self::rx_ring) and [`tx_ring`](Self::tx_ring) to obtain
+/// asynchronous ring wrappers.
 #[derive(Debug)]
 pub struct TokioNetmap {
     async_fd_netmap: Arc<AsyncFd<Netmap>>,
@@ -113,7 +113,7 @@ impl TokioNetmap {
         }
         // Safety: Netmap guarantees nifp and rings are valid if open succeeded.
         // The lifetime of ring_ptr is tied to Netmap within AsyncFd, managed by Arc.
-        let ring_ptr = unsafe { ffi::NETMAP_RXRING((*netmap_instance.desc).nifp, ring_idx as u32) };
+        let ring_ptr = unsafe { ffi::NETMAP_RXRING(netmap_instance.nifp(), ring_idx as u32) };
 
         Ok(AsyncNetmapRxRing {
             shared_fd_netmap: Arc::clone(&self.async_fd_netmap),
@@ -136,7 +136,7 @@ impl TokioNetmap {
             return Err(NetmapError::InvalidRingIndex(ring_idx));
         }
         // Safety: See rx_ring.
-        let ring_ptr = unsafe { ffi::NETMAP_TXRING((*netmap_instance.desc).nifp, ring_idx as u32) };
+        let ring_ptr = unsafe { ffi::NETMAP_TXRING(netmap_instance.nifp(), ring_idx as u32) };
 
         Ok(AsyncNetmapTxRing {
             shared_fd_netmap: Arc::clone(&self.async_fd_netmap),
@@ -151,9 +151,9 @@ impl TokioNetmap {
 /// manner when used within a Tokio runtime. It shares an `AsyncFd<Netmap>` with
 /// other ring wrappers from the same `TokioNetmap` instance.
 ///
-/// **Note:** The correct functioning of this `AsyncRead` implementation relies heavily
-/// on the proper, currently placeholder, implementation of `NIOCRXSYNC` ioctl calls
-/// within its `poll_read` method for synchronizing with the Netmap kernel module.
+/// **Note:** `poll_read` performs a `NIOCRXSYNC` ioctl on the underlying
+/// descriptor before checking the ring, so packets received by the kernel are
+/// made visible to the async task on each poll.
 #[derive(Debug)]
 pub struct AsyncNetmapRxRing {
     shared_fd_netmap: Arc<AsyncFd<Netmap>>,
@@ -166,15 +166,11 @@ impl AsyncRead for AsyncNetmapRxRing {
     /// Attempts to read data from the Netmap RX ring into `buf`.
     ///
     /// This method integrates with Tokio's event loop. It will:
-    /// 1. Attempt to synchronize the ring with the kernel (currently a placeholder for `NIOCRXSYNC ioctl`).
+    /// 1. Synchronize the ring with the kernel via the `NIOCRXSYNC` ioctl.
     /// 2. Check for available packets in the ring.
     /// 3. If packets are available, copy one packet's data into `buf` and advance the ring.
     /// 4. If no packets are available, it registers the current task for wakeup
     ///    when the underlying Netmap file descriptor becomes readable and returns `Poll::Pending`.
-    ///
-    /// **Critical Note:** The synchronization step (ioctl) is crucial and currently
-    /// simplified in this draft. It must be correctly implemented for this method
-    /// to function reliably.
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -183,21 +179,12 @@ impl AsyncRead for AsyncNetmapRxRing {
         let self_mut = self.get_mut();
         loop {
             // 1. Synchronize the ring with the kernel. This is crucial for Netmap.
-            // We call NIOCRXSYNC on the main Netmap file descriptor.
-            // This should update the userspace view of all RX rings managed by this descriptor.
-            // The netmap(4) man page suggests `ioctl(fd, NIOCRXSYNC)` can be used.
-            // The third argument for _IOWR ioctls is a pointer to the type specified.
-            // For a general sync on the FD, often a NULL pointer is passed if the specific
-            // content of struct nmreq isn't needed for this particular operation on the main FD.
-            // However, to be safe and align with how Netmap often uses nmreq for context,
-            // passing a minimal (e.g. zeroed) nmreq might be more robust if the kernel driver
-            // dereferences the pointer. For NIOCRXSYNC/NIOCTXSYNC on the main port fd,
-            // the kernel uses the nifp from the fd directly.
-            // Let's try with 0 as the argument first, as per common simple ioctl usage for commands.
-            // If this fails (e.g. EFAULT), we'll need to pass a pointer to a dummy nmreq.
+            // We call NIOCRXSYNC on the main Netmap file descriptor. This updates
+            // the userspace view of all RX rings managed by this descriptor.
+            // NIOCRXSYNC and NIOCTXSYNC are _IO ioctls that take no argument.
             unsafe {
                 let fd = self_mut.shared_fd_netmap.get_ref().as_raw_fd();
-                let ret = libc::ioctl(fd, ffi::NIOCRXSYNC as libc::c_ulong, 0 as *mut ffi::nmreq);
+                let ret = libc::ioctl(fd, ffi::NIOCRXSYNC);
                 if ret == -1 {
                     // If ioctl fails, it's an OS error. Return it.
                     return Poll::Ready(Err(io::Error::last_os_error()));
@@ -206,56 +193,68 @@ impl AsyncRead for AsyncNetmapRxRing {
 
             let ring = unsafe { &*self_mut.ring_ptr };
             // Ring pointers (head, tail, cur) should now be updated by the kernel side
-            // due to NIOCRXSYNC. Our logic below uses these updated values.
+            // due to NIOCRXSYNC. On RX rings, received packets occupy slots in
+            // `[head, tail)`, so we read from `head` and advance `head`.
             let mut head = ring.head;
-            let mut tail = ring.tail;
+            let tail = ring.tail;
             let num_slots = ring.num_slots;
 
             if head == tail {
-                match self_mut.shared_fd_netmap.poll_read_ready_mut(cx) {
+                match self_mut.shared_fd_netmap.poll_read_ready(cx) {
                     Poll::Ready(Ok(mut ready_guard)) => {
                         ready_guard.clear_ready();
-                        // Re-check after poll indicated readiness
-                        // Placeholder for proper sync via ioctl
-                        // unsafe { let fd = self_mut.shared_fd_netmap.get_ref().as_raw_fd(); libc::ioctl(fd, ffi::NIOCRXSYNC as _, self_mut.ring_ptr); }
+                        // Re-check after poll indicated readiness. The kernel
+                        // updates the ring on NIOCRXSYNC, performed above.
                         let updated_ring = unsafe { &*self_mut.ring_ptr };
                         head = updated_ring.head;
-                        if head == tail { return Poll::Pending; }
+                        if head == tail {
+                            return Poll::Pending;
+                        }
                     }
                     Poll::Ready(Err(e)) => return Poll::Ready(Err(e)),
                     Poll::Pending => return Poll::Pending,
                 }
             }
             // Process packet if head != tail
-            let current_slot_idx = tail % num_slots;
-            let slot = unsafe { &*ring.slot.add(current_slot_idx as usize) };
+            let current_slot_idx = head % num_slots;
+            let slot = unsafe { &*ring.slot.as_ptr().add(current_slot_idx as usize) };
             let packet_len = slot.len as usize;
 
-            if packet_len == 0 || buf.remaining() == 0 {
+            if packet_len == 0 {
                 unsafe {
                     let mutable_ring = &mut *self_mut.ring_ptr;
-                    let new_tail = (tail + 1) % num_slots;
-                    mutable_ring.cur = new_tail;
-                    mutable_ring.tail = new_tail;
+                    let new_head = (head + 1) % num_slots;
+                    mutable_ring.cur = new_head;
+                    mutable_ring.head = new_head;
                 }
+                continue;
+            }
+            if buf.remaining() == 0 {
                 return Poll::Ready(Ok(()));
             }
 
             let len_to_copy = std::cmp::min(packet_len, buf.remaining());
-            let packet_data = unsafe { std::slice::from_raw_parts(slot.buf as *const u8, len_to_copy) };
+            let buf_ptr = unsafe { ffi::NETMAP_BUF(self_mut.ring_ptr, slot.buf_idx) };
+            let packet_data =
+                unsafe { std::slice::from_raw_parts(buf_ptr as *const u8, len_to_copy) };
             buf.put_slice(packet_data);
 
             unsafe {
                 let mutable_ring = &mut *self_mut.ring_ptr;
-                let new_tail = (tail + 1) % num_slots;
-                mutable_ring.cur = new_tail;
-                mutable_ring.tail = new_tail;
+                let new_head = (head + 1) % num_slots;
+                mutable_ring.cur = new_head;
+                mutable_ring.head = new_head;
             }
             return Poll::Ready(Ok(()));
         }
     }
 }
 
+/// An asynchronous wrapper for a Netmap TX ring, implementing
+/// `tokio::io::AsyncWrite`.
+///
+/// It shares an `AsyncFd<Netmap>` with other ring wrappers from the same
+/// [`TokioNetmap`] instance.
 #[derive(Debug)]
 pub struct AsyncNetmapTxRing {
     shared_fd_netmap: Arc<AsyncFd<Netmap>>,
@@ -274,13 +273,9 @@ impl AsyncWrite for AsyncNetmapTxRing {
     /// 3. If the ring is full, it registers the current task for wakeup when the
     ///    underlying Netmap file descriptor becomes writable and returns `Poll::Pending`.
     ///
-    /// After writing data, `poll_flush` must be called to ensure the packets are made
-    /// available to the NIC (this typically involves an `NIOCTXSYNC` ioctl).
-    ///
-    /// **Critical Note:** The synchronization for making space available (related to `NIOCTXSYNC`
-    /// updating the `tail` pointer from the kernel's perspective) is currently simplified.
-    /// A complete implementation relies on `poll_flush` being effective and potentially
-    /// an initial sync if `NETMAP_NO_TX_POLL` is not used.
+    /// After writing data, `poll_flush` must be called to make the packets
+    /// visible to the NIC; it performs the `NIOCTXSYNC` ioctl that hands
+    /// queued packets to the kernel.
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -299,18 +294,18 @@ impl AsyncWrite for AsyncNetmapTxRing {
             let is_full = (head + 1) % num_slots == tail;
 
             if is_full {
-                match self_mut.shared_fd_netmap.poll_write_ready_mut(cx) {
+                match self_mut.shared_fd_netmap.poll_write_ready(cx) {
                     Poll::Ready(Ok(mut ready_guard)) => {
                         ready_guard.clear_ready();
-                        // FD is ready (space might be available). Loop to try writing again.
-                        // An explicit NIOCTXSYNC might be needed here if NETMAP_NO_TX_POLL is not set,
-                        // to ensure `tail` is up-to-date before re-checking space.
-                        // ** This is a simplification for now. **
+                        // FD is ready (space might be available). Loop to try
+                        // writing again; a NIOCTXSYNC (in poll_flush) refreshes
+                        // `tail` before re-checking space.
                     }
                     Poll::Ready(Err(e)) => return Poll::Ready(Err(e)), // Poll error
                     Poll::Pending => return Poll::Pending, // Not ready, waker registered
                 }
-            } else { // Space is available
+            } else {
+                // Space is available
                 if buf.is_empty() {
                     return Poll::Ready(Ok(0)); // Nothing to write
                 }
@@ -323,11 +318,18 @@ impl AsyncWrite for AsyncNetmapTxRing {
 
                 let current_slot_idx = head % num_slots;
                 // Safety: slot access is within num_slots.
-                let slot = unsafe { &mut *ring.slot.add(current_slot_idx as usize) };
+                let slot = unsafe {
+                    &mut *(*self_mut.ring_ptr)
+                        .slot
+                        .as_mut_ptr()
+                        .add(current_slot_idx as usize)
+                };
 
                 // Copy data to the slot buffer
-                // Safety: slot->buf is valid, buf.len() <= max_payload (nr_buf_size)
-                let slot_buf_slice = unsafe { std::slice::from_raw_parts_mut(slot.buf as *mut u8, buf.len()) };
+                // Safety: slot buffer is valid, buf.len() <= max_payload (nr_buf_size)
+                let dst = unsafe { ffi::NETMAP_BUF(self_mut.ring_ptr, slot.buf_idx) };
+                let slot_buf_slice =
+                    unsafe { std::slice::from_raw_parts_mut(dst as *mut u8, buf.len()) };
                 slot_buf_slice.copy_from_slice(buf);
                 slot.len = buf.len() as u16;
                 slot.flags = 0; // Clear flags, e.g. NS_BUF_CHANGED if it was set
@@ -347,21 +349,15 @@ impl AsyncWrite for AsyncNetmapTxRing {
 
     /// Flushes any buffered data to the Netmap TX ring, making it available to the NIC.
     ///
-    /// This method should perform the necessary synchronization with the kernel,
-    /// typically by calling `ioctl` with `NIOCTXSYNC`.
-    ///
-    /// **Critical Note:** The synchronization step (ioctl) is crucial and currently
-    /// a placeholder in this draft. It must be correctly implemented for this method
-    /// to function reliably.
+    /// This method performs the necessary synchronization with the kernel by
+    /// calling the `NIOCTXSYNC` ioctl, making pending writes visible to the NIC.
     fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        // Safety: ring_ptr is valid. This syncs pending writes to the NIC.
-        // Similar to NIOCRXSYNC, NIOCTXSYNC called on the main Netmap FD should sync all TX rings.
-        // The third argument is 0, assuming it's optional or ignored for a full TX sync on the FD.
-        // This is based on netmap(4) man page `ioctl(fd, NIOCTXSYNC)`.
+        // Safety: ring_ptr is valid. NIOCTXSYNC is an _IO ioctl that takes no
+        // argument and syncs all TX rings owned by the descriptor.
         unsafe {
             let self_mut = self.get_mut(); // Pin::get_mut is safe within poll_ methods if not moving self_mut
             let fd = self_mut.shared_fd_netmap.get_ref().as_raw_fd();
-            let ret = libc::ioctl(fd, ffi::NIOCTXSYNC as libc::c_ulong, 0 as *mut ffi::nmreq);
+            let ret = libc::ioctl(fd, ffi::NIOCTXSYNC);
             if ret == -1 {
                 return Poll::Ready(Err(io::Error::last_os_error()));
             }

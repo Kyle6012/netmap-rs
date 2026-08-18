@@ -24,12 +24,11 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 // Assuming netmap_rs prelude might not yet include the tokio types, import directly.
+use netmap_rs::tokio_async::{AsyncNetmapRxRing, AsyncNetmapTxRing, TokioNetmap};
 use netmap_rs::NetmapBuilder;
-use netmap_rs::tokio_async::{TokioNetmap, AsyncNetmapRxRing, AsyncNetmapTxRing};
-
 
 // Use a unique pipe name for this example
-const ASYNC_PIPE_NAME: &str = "netmap:pipe{tokio_async_example_789}";
+const ASYNC_PIPE_NAME: &str = "netmap:pipe{tokio789}";
 const ASYNC_NUM_PACKETS: usize = 5;
 const ASYNC_PACKET_SIZE: usize = 60; // Minimum Ethernet frame size
 
@@ -39,7 +38,11 @@ async fn sender_task(mut tx_ring: AsyncNetmapTxRing) -> Result<(), Box<dyn Error
         let mut payload = format!("AsyncPacket #{}", i).into_bytes();
         payload.resize(ASYNC_PACKET_SIZE, 0); // Pad to ensure fixed size
 
-        print!("[Async Sender] Sending packet #{} ({} bytes)...", i, payload.len());
+        print!(
+            "[Async Sender] Sending packet #{} ({} bytes)...",
+            i,
+            payload.len()
+        );
 
         // Write the packet
         tx_ring.write_all(&payload).await?;
@@ -61,7 +64,10 @@ async fn receiver_task(mut rx_ring: AsyncNetmapRxRing) -> Result<(), Box<dyn Err
     let mut receive_buffer = vec![0u8; ASYNC_PACKET_SIZE * 2]; // Buffer large enough for typical MTU
 
     while packets_received < ASYNC_NUM_PACKETS {
-        print!("[Async Receiver] Attempting to read packet #{}...", packets_received);
+        print!(
+            "[Async Receiver] Attempting to read packet #{}...",
+            packets_received
+        );
         match rx_ring.read(&mut receive_buffer).await {
             Ok(0) => {
                 // EOF typically means the other side closed.
@@ -82,7 +88,9 @@ async fn receiver_task(mut rx_ring: AsyncNetmapRxRing) -> Result<(), Box<dyn Err
                     eprintln!(
                         "[Async Receiver] Payload mismatch! Expected prefix: '{}', Got: '{}'",
                         expected_prefix,
-                        String::from_utf8_lossy(&received_payload[..std::cmp::min(n, expected_prefix.len())])
+                        String::from_utf8_lossy(
+                            &received_payload[..std::cmp::min(n, expected_prefix.len())]
+                        )
                     );
                 }
                 packets_received += 1;
@@ -95,14 +103,20 @@ async fn receiver_task(mut rx_ring: AsyncNetmapRxRing) -> Result<(), Box<dyn Err
     }
 
     if packets_received >= ASYNC_NUM_PACKETS {
-        println!("[Async Receiver] Successfully received all {} packets.", ASYNC_NUM_PACKETS);
+        println!(
+            "[Async Receiver] Successfully received all {} packets.",
+            ASYNC_NUM_PACKETS
+        );
     } else {
-        println!("[Async Receiver] Finished. Received {} out of {} packets.", packets_received, ASYNC_NUM_PACKETS);
+        println!(
+            "[Async Receiver] Finished. Received {} out of {} packets.",
+            packets_received, ASYNC_NUM_PACKETS
+        );
     }
     Ok(())
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error + Send + Sync>> {
     println!(
         "Tokio Async Netmap Pipe Example using '{}'",
