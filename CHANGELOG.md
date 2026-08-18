@@ -3,6 +3,31 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-08-18
+
+### Added
+- `apps/` directory mirroring the upstream netmap C repo layout:
+  - `pkt-gen` — packet generator/drainer for VALE ports and netmap pipes
+  - `vale-ctl` — VALE switch and port management
+  - `ping` — round-trip latency probe over a netmap pipe
+  - `bridge` — frame relay between two VALE ports
+  - `tokio-proxy` — asynchronous pipe relay using Tokio
+- Integration tests are now parallel-safe (unique VALE port names per test)
+
+### Changed
+- **BREAKING**: Migrated to the netmap 14 API via `netmap-min-sys` 0.3.1
+  (pulled from crates.io instead of a local path)
+- RX rings now read at `head` instead of the stale `tail` slot; `recv`/`recv_batch`
+  advance `head` correctly
+- `Ring::sync()` is direction-aware (TX → `NIOCTXSYNC`, RX → `NIOCRXSYNC`)
+- Tokio `poll_read` reads at `ring.head` (fixes a 128-vs-64 byte buffer artifact)
+- Host-ring tests (`netmap:lo^`) are gated behind `NETMAP_TEST_HOST_RINGS=1`
+  so the suite never touches the loopback (or any live NIC) by default
+
+### Fixed
+- Examples and benches compiled against a stale API (`.open()`, `Frame::default`,
+  `benchmark_group`) now build clean; zero clippy warnings across all targets
+
 ## [0.3.0] - 2025-10-24
 
 ### Added

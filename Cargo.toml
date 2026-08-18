@@ -1,6 +1,6 @@
 [package]
 name = "netmap-rs"
-version = "0.3.0"
+version = "0.3.1"
 edition = "2021"  # Changed from 2024 to 2021 for better compatibility
 authors = ["Meshack Bahati Ouma <bahatikylemeshack@gmail.com>"]
 description = "Safe, zero-cost abstractions for Netmap kernel-bypass networking"
