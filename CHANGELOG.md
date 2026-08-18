@@ -6,7 +6,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.1] - 2026-08-18
 
 ### Added
-- `apps/` directory mirroring the upstream netmap C repo layout:
+- `apps/` directory containing all the applications shipped with netmap-rs,
+  plus the existing `examples/` and supporting tooling
+  (apps and examples both build clean under the `sys`/`tokio-async` features):
   - `pkt-gen` — packet generator/drainer for VALE ports and netmap pipes
   - `vale-ctl` — VALE switch and port management
   - `ping` — round-trip latency probe over a netmap pipe
@@ -16,7 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **BREAKING**: Migrated to the netmap 14 API via `netmap-min-sys` 0.3.1
-  (pulled from crates.io instead of a local path)
 - RX rings now read at `head` instead of the stale `tail` slot; `recv`/`recv_batch`
   advance `head` correctly
 - `Ring::sync()` is direction-aware (TX → `NIOCTXSYNC`, RX → `NIOCRXSYNC`)
