@@ -595,7 +595,7 @@ This project is licensed under either of:
 at your option.
 
 ## AUTHOR
-- Meshack Bahati Ouma - CS major (Maseno University (Kenya))
+- Meshack Bahati Ouma
 
 - **Email**: bahatikylemeshack@gmail.com
 
@@ -606,4 +606,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Acknowledgments
 
 - The Netmap project for the excellent kernel-bypass networking framework
-- The Rust community for the safe systems programming language
